@@ -1,0 +1,193 @@
+{
+  "main": {
+    "id": "28021555da14501d",
+    "type": "split",
+    "children": [
+      {
+        "id": "13f8c3ebf7244733",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5fa74d3838fc84e8",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Модернизация Modbus Systemal features (Планирование)"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "b54af3f82533a79c",
+    "type": "split",
+    "children": [
+      {
+        "id": "3d097307df746ca8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "91efd82da0590a86",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "6166fa8a7fc8994d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "c989bf7c177f95c0",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "cbc32de094157cdb",
+    "type": "split",
+    "children": [
+      {
+        "id": "812608cf881e4bfb",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "158292d0ee04eb62",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Модернизация Modbus Systemal features (Планирование)"
+            }
+          },
+          {
+            "id": "abce79af7ca0b1ff",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Модернизация Modbus Systemal features (Планирование)"
+            }
+          },
+          {
+            "id": "df584d138b22856d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "49e6bd4fd963220b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "3798b0c09c9727e5",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Модернизация Modbus Systemal features (Планирование)"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "5fa74d3838fc84e8",
+  "lastOpenFiles": [
+    "Docs/АРМ Инженера IIoT (Vue 3).md",
+    "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
+    "Docs/Модернизация Modbus Systemal features (Планирование).md",
+    "Docs/АРМ Инженера IIoT (Nuxt 4).md"
+  ]
+}

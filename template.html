@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IIoT Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100">
+    <div class="min-h-screen bg-slate-900 p-8 text-slate-100 font-sans">
+      <div class="flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold border-l-4 border-blue-500 pl-4">Живой мониторинг (ADAM-6017)</h1>
+        <div class="flex gap-4">
+          <span class="flex items-center gap-2 text-sm text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/20">
+            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            SignalR Online
+          </span>
+          <button class="bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-400 transition">Настроить сетку</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 hover:border-blue-500/50 transition-all cursor-move group">
+          <div class="flex justify-between items-start mb-4">
+            <span class="text-xs font-mono text-slate-500 uppercase tracking-wider">Port 01 • Analog</span>
+            <i class="text-blue-400 opacity-50 group-hover:opacity-100">⠿</i>
+          </div>
+          <h3 class="text-slate-400 text-sm mb-1">Давление в системе</h3>
+          <div class="flex items-baseline gap-2">
+            <span class="text-4xl font-bold tracking-tight text-white">6.42</span>
+            <span class="text-slate-500 font-medium">Bar</span>
+          </div>
+          <div class="mt-4 h-12 flex items-end gap-1">
+            <div class="w-full bg-blue-500/20 h-4 rounded-sm"></div>
+            <div class="w-full bg-blue-500/20 h-6 rounded-sm"></div>
+            <div class="w-full bg-blue-500/20 h-8 rounded-sm"></div>
+            <div class="w-full bg-blue-500/40 h-10 rounded-sm"></div>
+            <div class="w-full bg-blue-500 h-12 rounded-sm shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 hover:border-green-500/50 transition-all cursor-move group">
+          <div class="flex justify-between items-start mb-4">
+            <span class="text-xs font-mono text-slate-500 uppercase tracking-wider">Port 02 • Digital</span>
+            <i class="text-slate-400 opacity-50 group-hover:opacity-100">⠿</i>
+          </div>
+          <h3 class="text-slate-400 text-sm mb-1">Насос охлаждения</h3>
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_12px_rgba(34,197,94,0.6)]"></div>
+            <span class="text-2xl font-bold text-white uppercase tracking-wide">Работает</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-4">Последнее переключение: 12 мин. назад</p>
+        </div>
+
+        <div class="bg-red-900/20 border border-red-500/50 rounded-xl p-5 hover:border-red-500 transition-all cursor-move group">
+          <div class="flex justify-between items-start mb-4">
+            <span class="text-xs font-mono text-red-400 uppercase tracking-wider">Port 05 • Critical</span>
+            <i class="text-red-400 opacity-50 group-hover:opacity-100">⠿</i>
+          </div>
+          <h3 class="text-red-300 text-sm mb-1">Температура масла</h3>
+          <div class="flex items-baseline gap-2">
+            <span class="text-4xl font-bold tracking-tight text-red-500">92.4</span>
+            <span class="text-red-400 font-medium">°C</span>
+          </div>
+          <div class="mt-3 text-xs bg-red-500/20 text-red-300 p-2 rounded border border-red-500/30">⚠️ Превышен порог (85.0)</div>
+        </div>
+
+        <div class="bg-slate-800/50 border border-dashed border-slate-600 rounded-xl p-5 hover:border-purple-500/50 transition-all cursor-move group">
+          <div class="flex justify-between items-start mb-4">
+            <span class="text-xs font-mono text-purple-400 uppercase tracking-wider">Virtual • Logic</span>
+            <i class="text-purple-400 opacity-50 group-hover:opacity-100">⠿</i>
+          </div>
+          <h3 class="text-slate-400 text-sm mb-1">КПД установки (расчет)</h3>
+          <div class="flex items-baseline gap-2">
+            <span class="text-4xl font-bold tracking-tight text-purple-400">88.2</span>
+            <span class="text-slate-500 font-medium">%</span>
+          </div>
+          <p class="text-[10px] font-mono text-slate-600 mt-4 uppercase">Формула: (P1 / P2) * 100</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
