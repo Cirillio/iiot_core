@@ -1,0 +1,31 @@
+# --- .NET Core / C# ---
+[Bb]in/
+[Oo]bj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.launchSettings.json
+
+# --- Python (Simulator) ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# --- Docker & Logs ---
+.docker/
+*.log
+modbusClient/logs/
+pgdata/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Secrets ---
+# Игнорируем локальные конфиги, если они содержат пароли (опционально)
+# appsettings.Development.json
