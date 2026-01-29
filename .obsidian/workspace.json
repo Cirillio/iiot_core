@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
-                "mode": "source",
+                "file": "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Модернизация Modbus Systemal features (Планирование)"
+              "title": "Распределенная IIoT-система Мониторинга (ADAM-6017)"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "file": "db.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Модернизация Modbus Systemal features (Планирование)"
+              "title": "Backlinks for db"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "file": "db.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from Модернизация Modbus Systemal features (Планирование)"
+              "title": "Outgoing links from db"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "file": "db.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Модернизация Modbus Systemal features (Планирование)"
+              "title": "Outline of db"
             }
           }
         ]
@@ -185,9 +185,25 @@
   },
   "active": "5fa74d3838fc84e8",
   "lastOpenFiles": [
+    "templs/shadcninstall/Vite - shadcn_vue.html",
+    "templs/shadcninstall/Vite - shadcn_vue_files/vcd15cbe7772f49c399c6a5babf22c1241717689176015",
+    "templs/shadcninstall/Vite - shadcn_vue_files/entry.ChdIpV1d.css",
+    "templs/shadcninstall/Vite - shadcn_vue_files/carbon.js",
+    "templs/shadcninstall/Vite - shadcn_vue_files/_...83C6ZqTq.css",
+    "templs/shadcninstall/Vite - shadcn_vue_files/CK_TgWTZ.js",
+    "templs/shadcninstall/Vite - shadcn_vue_files",
+    "templs/shadcninstall",
+    "templs/package.json.4142791054",
+    "templs/pnpm-lock.yaml.3703890700",
+    "templs/_tmp_19695_03d600ec855fa7ff16f98fc1d1115a0c",
     "Docs/АРМ Инженера IIoT (Vue 3).md",
     "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
     "Docs/Модернизация Modbus Systemal features (Планирование).md",
+    "Docs/usefuls.md",
+    "db.md",
+    "templs/prototyping.md",
+    "templs/README.md",
+    "prototyping.md",
     "Docs/АРМ Инженера IIoT (Nuxt 4).md"
   ]
 }

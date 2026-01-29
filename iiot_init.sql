@@ -262,6 +262,19 @@ BEGIN
         PERFORM add_job('prc_run_retention', '1 day');
     END IF;
 
+CREATE TABLE devices (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    ip_address VARCHAR(50) NOT NULL, -- '192.168.0.10'
+    port INT DEFAULT 502,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Связываем датчики с устройством
+ALTER TABLE sensor_settings 
+ADD COLUMN device_id INT REFERENCES devices(id);
+
 
 -- 10. КОММЕНТАРИИ ДЛЯ ДОКУМЕНТАЦИИ (Дополнительные)
 COMMENT ON TABLE metrics IS 'Гипертаблица временных рядов телеметрии';
