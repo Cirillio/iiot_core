@@ -10,6 +10,7 @@ public class SystemConfig
     public int PollingIntervalMs { get; init; } = 1000; // Опрос датчиков
     public int ConfigReloadIntervalSec { get; init; } = 60; // Проверка новых устройств
     public int HealthCheckIntervalSec { get; init; } = 30; // Отправка пульса
-
+    public double DeadbandThreshold { get; init; } = 0.01;
+    public int DataHeartbeatSec { get; init; } = 600;
     public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
 }

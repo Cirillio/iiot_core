@@ -11,7 +11,7 @@ SeriLogger.Configure();
 
 try
 {
-    Log.Information("Starting Modbus Client...");
+    Log.Information("Starting ModbusClient...");
 
     var builder = Host.CreateApplicationBuilder(args);
 
@@ -26,12 +26,13 @@ try
     builder.Services.AddSingleton<IModbusService, ModbusService>();
     builder.Services.AddSingleton<IDeviceService, DeviceService>();
     builder.Services.AddSingleton<IReadingService, ReadingService>();
+    builder.Services.AddSingleton<IBufferRepository, SqliteBufferRepository>();
 
     // 3. Регистрация самого воркера (фоновая задача)
     builder.Services.AddHostedService<ModbusWorker>();
 
     var host = builder.Build();
-    Log.Information("ModbusClient is running.");
+    Log.Information("ModbusClient started.");
     await host.RunAsync();
 }
 catch (Exception ex)

@@ -204,6 +204,11 @@ CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     raw_retention_days INT DEFAULT 90,
     agg_retention_days INT DEFAULT 1825,
+    polling_interval_ms INT DEFAULT 1000,
+    config_reload_interval_sec INT DEFAULT 60,
+    health_check_interval_sec INT DEFAULT 30,
+    deadband_threshold double DEFAULT 0.01,
+    data_heartbeat_sec int DEFAULT 600,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

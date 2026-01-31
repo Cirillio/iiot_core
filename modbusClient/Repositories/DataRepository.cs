@@ -190,6 +190,8 @@ public class DataRepository : IDataRepository
                   polling_interval_ms,
                   config_reload_interval_sec,
                   health_check_interval_sec,
+                  COALESCE(deadband_threshold, 0.01) as DeadbandThreshold,
+                  COALESCE(data_heartbeat_sec, 600) as DataHeartbearSec,
                   updated_at
               FROM system_config
               LIMIT 1";
