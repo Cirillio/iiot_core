@@ -52,11 +52,32 @@ END;
 $$ LANGUAGE plpgsql;
 
 /**
+ * @table devices
+ * @description Реестр физических контроллеров/устройств сбора данных (PLC, IoT Gateway).
+ * Создается ПЕРЕД датчиками для обеспечения ссылочной целостности.
+ * 
+ * @property {serial} id - Уникальный идентификатор устройства.
+ * @property {varchar} name - Имя устройства.
+ * @property {varchar} ip_address - IP адрес (например, '192.168.0.10').
+ * @property {integer} port - Порт Modbus TCP (default 502).
+ * @property {boolean} is_active - Флаг активности опроса.
+ */
+CREATE TABLE IF NOT EXISTS devices (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    ip_address VARCHAR(50) NOT NULL,
+    port INT DEFAULT 502,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+/**
  * @table sensor_settings
  * @description Реестр конфигураций датчиков и параметров нормализации сигналов.
  * Хранит метаданные, необходимые для интерпретации сырых значений и отображения их в UI.
  * 
  * @property {serial} sensor_id - Уникальный идентификатор датчика (PK).
+ * @property {integer} device_id - Ссылка на устройство (PLC).
  * @property {integer} port_number - Физический номер порта на контроллере.
  * @property {varchar} name - Человекочитаемое название датчика.
  * @property {varchar} slug - Уникальный строковый идентификатор для API и формул (Unique).
@@ -74,6 +95,7 @@ $$ LANGUAGE plpgsql;
  */
 CREATE TABLE IF NOT EXISTS sensor_settings (
     sensor_id SERIAL PRIMARY KEY,
+    device_id INT REFERENCES devices(id) ON DELETE RESTRICT,
     port_number INT,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(50) UNIQUE,
@@ -86,7 +108,9 @@ CREATE TABLE IF NOT EXISTS sensor_settings (
     offset_val DOUBLE PRECISION DEFAULT 0,
     formula TEXT,
     ui_config JSONB DEFAULT '{}',
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- Гарантия уникальности порта на устройстве (Физическая уникальность)
+    CONSTRAINT uq_sensor_device_port UNIQUE (device_id, port_number)
 );
 
 DROP TRIGGER IF EXISTS trg_update_sensor_settings_time ON sensor_settings;
@@ -261,20 +285,7 @@ BEGIN
     ) THEN
         PERFORM add_job('prc_run_retention', '1 day');
     END IF;
-
-CREATE TABLE devices (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    ip_address VARCHAR(50) NOT NULL, -- '192.168.0.10'
-    port INT DEFAULT 502,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Связываем датчики с устройством
-ALTER TABLE sensor_settings 
-ADD COLUMN device_id INT REFERENCES devices(id);
-
+END $$;
 
 -- 10. КОММЕНТАРИИ ДЛЯ ДОКУМЕНТАЦИИ (Дополнительные)
 COMMENT ON TABLE metrics IS 'Гипертаблица временных рядов телеметрии';

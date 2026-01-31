@@ -21,8 +21,11 @@ try
 
     // 2. Регистрация сервисов
     builder.Services.AddScoped<IDataRepository, DataRepository>(); // Репозиторий для БД
-    // Работа с железом: Singleton, так как нам нужно одно стабильное соединение
+
+    // Domain Services
     builder.Services.AddSingleton<IModbusService, ModbusService>();
+    builder.Services.AddSingleton<IDeviceService, DeviceService>();
+    builder.Services.AddSingleton<IReadingService, ReadingService>();
 
     // 3. Регистрация самого воркера (фоновая задача)
     builder.Services.AddHostedService<ModbusWorker>();

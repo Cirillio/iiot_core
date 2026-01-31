@@ -2,24 +2,30 @@ using ModbusClient.Models;
 
 namespace ModbusClient.Interfaces;
 
-/// <summary>
-/// Interface for interacting with the database.
-/// </summary>
 public interface IDataRepository
 {
-    // Saving a batch of analog (RAW) data
-    // Using IEnumerable for Bulk Insert (high speed)
-    Task SaveRawMeasurementsAsync(IEnumerable<RawMeasurement> measurements);
+    /// <summary>
+    /// Сохраняет измерения в базу (TimescaleDB metrics).
+    /// </summary>
+    Task SaveMetricsAsync(IEnumerable<Metric> metrics);
 
-    // Saving digital input states
-    Task SaveDigitalMeasurementsAsync(IEnumerable<DigitalMeasurement> measurements);
-
-    // Getting port settings (so the worker knows what to poll)
-    Task<IEnumerable<SensorConfig>> GetSensorConfigsAsync();
-
-    // Updating settings (called by API server or desktop client)
-    Task UpdateSensorConfigAsync(SensorConfig config);
-
-    // Updating system status in DB logs
+    /// <summary>
+    /// Обновляет статус сервиса (Heartbeat).
+    /// </summary>
     Task UpdateSystemStatusAsync(SystemStatus status);
+
+    /// <summary>
+    /// Получает список активных контроллеров для опроса.
+    /// </summary>
+    Task<IEnumerable<Device>> GetActiveDevicesAsync();
+
+    /// <summary>
+    /// Получает настройки всех датчиков для маппинга (Device+Port -> SensorID).
+    /// </summary>
+    Task<IEnumerable<SensorSettings>> GetSensorSettingsAsync();
+
+    /// <summary>
+    /// Получает глобальные настройки системы (интервалы, retention).
+    /// </summary>
+    Task<SystemConfig> GetSystemConfigAsync();
 }

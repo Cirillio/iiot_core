@@ -1,21 +1,26 @@
-using ModbusClient.Models;
+using System.Net.Sockets;
+using NModbus;
 
 namespace ModbusClient.Interfaces;
 
-/// <summary>
-/// Interface for ADAM devices usage
-/// </summary>
 public interface IModbusService
 {
-    // Проверка связи и инициализация регистров (режим 0x0008)
-    Task<bool> InitializeAsync(string ipAddress, int port, CancellationToken ct);
+    /// <summary>
+    /// Создает новое физическое подключение и настраивает контроллер (0x0008).
+    /// </summary>
+    Task<(IModbusMaster Master, TcpClient Client)?> ConnectAsync(
+        string ip,
+        int port,
+        CancellationToken ct
+    );
 
-    // Чтение всех аналоговых портов (возвращает список RAW значений)
-    Task<IEnumerable<RawMeasurement>> ReadAllAnalogAsync(CancellationToken ct);
+    /// <summary>
+    /// Читает сырые данные аналоговых входов (0-65535).
+    /// </summary>
+    Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master);
 
-    // Чтение цифровых входов
-    Task<IEnumerable<DigitalMeasurement>> ReadAllDigitalAsync(CancellationToken ct);
-
-    // Безопасное закрытие соединения
-    Task DisconnectAsync();
+    /// <summary>
+    /// Читает сырые данные цифровых входов (True/False).
+    /// </summary>
+    Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master);
 }

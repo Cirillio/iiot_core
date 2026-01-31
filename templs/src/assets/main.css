@@ -1,58 +1,16 @@
 @import 'tailwindcss';
+@import "tw-animate-css";
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
-    --radius: 0.5rem;
-  }
+@plugin 'tailwindcss-animate';
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-  }
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
 
-  /* Shadcn Vue Colors */
+  /* Shadcn & System Colors */
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -80,64 +38,134 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
 
-  /* Apple-like System Colors */
-  --color-ios-bg-light: #f5f5f7; /* Slightly warmer/softer than pure gray */
-  --color-ios-bg-dark: #000000;
-
-  --color-ios-card-light: #ffffff;
-  --color-ios-card-dark: #1c1c1e;
-
-  --color-ios-text-light: #1d1d1f;
-  --color-ios-text-dark: #f5f5f7;
-
-  --color-ios-blue: #007aff;
-  --color-ios-green: #34c759;
-  --color-ios-red: #ff3b30;
-  --color-ios-gray: #8e8e93;
-
-  --color-stage-bg: #09090b; /* Zinc-950 for stage */
-
-  /* Soft Gradient */
-  --image-gradient-subtle: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  --image-gradient-subtle-dark: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  /* iOS / Phone Specific Colors */
+  --color-ios-bg: var(--ios-bg);
+  --color-ios-nav-bg: var(--ios-nav-bg);
+  --color-stage-bg: #09090b;
 
   --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-:root {
-  --ios-bg: var(--color-ios-bg-light);
-  --ios-card: var(--color-ios-card-light);
-  --ios-text: var(--color-ios-text-light);
-  --ios-nav-bg: rgba(255, 255, 255, 0.8);
-}
-
-.dark {
-  --ios-bg: var(--color-ios-bg-dark);
-  --ios-card: var(--color-ios-card-dark);
-  --ios-text: var(--color-ios-text-dark);
-  --ios-nav-bg: rgba(28, 28, 30, 0.8);
-}
-
-@theme {
-  --color-ios-bg: var(--ios-bg);
-  --color-ios-card: var(--ios-card);
-  --color-ios-text: var(--ios-text);
-  --color-ios-nav-bg: var(--ios-nav-bg);
   --animate-slide-up: slide-up 0.5s var(--ease-apple) forwards;
 }
 
+@layer base {
+  :root {
+    /* Shadcn Variables (Light) - Mapping to iOS-like tones */
+    --background: 240 5% 96%; /* #f5f5f7 - Apple Light Gray */
+    --foreground: 240 10% 3.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+    
+    --radius: 0.75rem; /* More rounded for mobile */
+
+    --ios-nav-bg: rgba(255, 255, 255, 0.8);
+    
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Shadcn Variables (Dark) - Mapping to iOS-like tones */
+    --background: 0 0% 0%; /* #000000 - Apple Dark */
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 11%; /* Slightly lighter than black */
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 11%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    --ios-nav-bg: rgba(28, 28, 30, 0.8);
+
+    --sidebar: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+  
+  /* Reset body to be the "Stage" */
+  body {
+    background-color: var(--color-stage-bg);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+/* Animations & Utilities */
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -149,29 +177,10 @@
   }
 }
 
-body {
-  background-color: var(--color-stage-bg); /* Stage background */
-  color: var(--ios-text);
-  font-family: var(--font-sans);
-  overflow: hidden; /* Prevent body scroll, handle inside phone */
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Apple-like scrollbar (hidden mostly or very thin) */
-::-webkit-scrollbar {
-  width: 0px;
-  background: transparent;
-}
-
-/* Page Transitions - iOS Push Style */
+/* Page Transitions */
 .page-enter-active,
 .page-leave-active {
-  transition:
-    opacity 0.4s var(--ease-apple),
-    transform 0.4s var(--ease-apple);
+  transition: opacity 0.4s var(--ease-apple), transform 0.4s var(--ease-apple);
 }
 
 .page-enter-from {
@@ -184,10 +193,11 @@ body {
   transform: translateX(-5px) scale(0.98);
 }
 
-/* Utility for Safe Area */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 20px);
+/* Utilities */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-.pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

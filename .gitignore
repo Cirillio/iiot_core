@@ -1,6 +1,11 @@
-# --- .NET Core / C# ---
-[Bb]in/
-[Oo]bj/
+# --- OS & System ---
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- IDEs & Editors ---
+# Visual Studio / VS Code
 .vs/
 .vscode/
 *.user
@@ -8,24 +13,67 @@
 *.userprefs
 *.launchSettings.json
 
-# --- Python (Simulator) ---
+# JetBrains (Rider, PyCharm, WebStorm)
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
+# Obsidian (Personal workspace settings)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# --- .NET (Core & Framework) ---
+[Bb]in/
+[Oo]bj/
+TestResults/
+*.generated.cs
+
+# Legacy NuGet (DipMod / WPF)
+packages/
+!packages/build/
+*.nupkg
+
+# --- Python (`sim` folder) ---
 __pycache__/
 *.py[cod]
 *$py.class
 venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
 .env
 
-# --- Docker & Logs ---
+# --- Node.js / Vue / Vite (`templs` folder) ---
+node_modules/
+dist/
+dist-ssr/
+.output/
+.nuxt/
+coverage/
+*.local
+*.tsbuildinfo
+
+# Package managers logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Docker & Infrastructure ---
 .docker/
+docker-compose.override.yml
+pgdata/
+rabbitmq_data/
+
+# --- Logs & Temporaries ---
 *.log
 modbusClient/logs/
-pgdata/
-
-# --- OS Specific ---
-.DS_Store
-Thumbs.db
-desktop.ini
+modbusWebGateway/logs/
 
 # --- Secrets ---
-# Игнорируем локальные конфиги, если они содержат пароли (опционально)
-# appsettings.Development.json
+# !ВАЖНО: Никогда не коммить реальные секреты!
+appsettings.Development.json
+secrets.json
