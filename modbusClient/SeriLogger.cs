@@ -1,8 +1,16 @@
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
+/// <summary>
+/// Статический класс для настройки логгера Serilog.
+/// </summary>
 public static class SeriLogger
 {
+    /// <summary>
+    /// Конфигурирует глобальный логгер Serilog.
+    /// Читает настройки из appsettings.json и переменных окружения.
+    /// Настраивает вывод в консоль с кастомным шаблоном.
+    /// </summary>
     public static void Configure()
     {
         var configuration = new ConfigurationBuilder()

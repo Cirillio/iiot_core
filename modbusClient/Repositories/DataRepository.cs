@@ -10,30 +10,39 @@ using Serilog;
 namespace ModbusClient.Repositories;
 
 /// <summary>
-/// Репозиторий для взаимодействия с базой данных (TimescaleDB + PostgreSQL).
-/// Реализует методы для сохранения измерений и управления настройками датчиков.
+/// Репозиторий для взаимодействия с основной базой данных (PostgreSQL + TimescaleDB).
+/// Отвечает за сохранение метрик и загрузку конфигурации.
 /// </summary>
 public class DataRepository : IDataRepository
 {
     private readonly string _connectionString;
     private readonly ILogger _logger = Log.ForContext<DataRepository>();
 
+    /// <summary>
+    /// Инициализирует новый экземпляр репозитория.
+    /// </summary>
+    /// <param name="configuration">Конфигурация приложения для доступа к строке подключения 'ADAMDB'.</param>
+    /// <exception cref="ArgumentNullException">Если строка подключения не найдена.</exception>
     public DataRepository(IConfiguration configuration)
     {
         _connectionString =
             configuration.GetConnectionString("ADAMDB")
             ?? throw new ArgumentNullException("Database connection string 'ADAMDB' is missing");
 
-        // Позволяет Dapper автоматически маппить snake_case из БД в PascalCase свойства C#
+        // Глобальная настройка Dapper: маппинг snake_case (в БД) в PascalCase (в C#)
         DefaultTypeMap.MatchNamesWithUnderscores = true;
     }
 
+    /// <summary>
+    /// Создает новое подключение к PostgreSQL.
+    /// </summary>
     private NpgsqlConnection CreateConnection() => new(_connectionString);
 
-    /// <summary>
-    /// Высокопроизводительная вставка метрик через PostgreSQL Binary COPY.
-    /// Идеально для TimescaleDB и больших объемов данных.
-    /// </summary>
+    /// <inheritdoc />
+    /// <remarks>
+    /// Использует протокол PostgreSQL Binary COPY для максимальной производительности вставки.
+    /// Это значительно быстрее обычных INSERT запросов, особенно для TimescaleDB.
+    /// </remarks>
     public async Task SaveMetricsAsync(IEnumerable<Metric> metrics)
     {
         var metricsList = metrics.ToList();
@@ -45,7 +54,7 @@ public class DataRepository : IDataRepository
             using var conn = CreateConnection();
             await conn.OpenAsync();
 
-            // COPY protocol - самый быстрый способ вставки в Postgres
+            // COPY protocol - прямой поток бинарных данных в таблицу
             using var writer = await conn.BeginBinaryImportAsync(
                 "COPY metrics (time, sensor_id, raw_value, value) FROM STDIN (FORMAT BINARY)"
             );
@@ -56,6 +65,7 @@ public class DataRepository : IDataRepository
                 await writer.WriteAsync(m.Time, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(m.SensorId, NpgsqlDbType.Integer);
 
+                // RawValue может быть NULL
                 if (m.RawValue.HasValue)
                     await writer.WriteAsync(m.RawValue.Value, NpgsqlDbType.Double);
                 else
@@ -73,15 +83,15 @@ public class DataRepository : IDataRepository
                 "Failed to bulk insert {Count} metrics into TimescaleDB",
                 metricsList.Count
             );
-            throw; // Пробрасываем исключение для обработки Retry Policy в вызывающем коде
+            // Пробрасываем исключение, чтобы вызывающий код (Worker) мог задействовать буфер
+            throw;
         }
     }
 
-    /// <summary>
-    /// Обновляет статус сервиса (Heartbeat).
-    /// </summary>
+    /// <inheritdoc />
     public async Task UpdateSystemStatusAsync(SystemStatus status)
     {
+        // Upsert (INSERT ON CONFLICT UPDATE) логика для обновления статуса
         const string sql =
             @"
             INSERT INTO system_status (service_name, status, uptime_seconds, last_error, last_sync)
@@ -101,7 +111,7 @@ public class DataRepository : IDataRepository
                 new
                 {
                     status.ServiceName,
-                    Status = status.Status.ToString(), // Enum -> String для корректного каста в SQL
+                    Status = status.Status.ToString(), // Enum -> String для корректного каста в Postgres enum type
                     status.UptimeSeconds,
                     status.LastError,
                     status.LastSync,
@@ -114,9 +124,7 @@ public class DataRepository : IDataRepository
         }
     }
 
-    /// <summary>
-    /// Получает список активных контроллеров для опроса.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<IEnumerable<Device>> GetActiveDevicesAsync()
     {
         const string sql =
@@ -137,9 +145,7 @@ public class DataRepository : IDataRepository
         }
     }
 
-    /// <summary>
-    /// Получает настройки всех датчиков для маппинга (Device+Port -> SensorID) и калибровки.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<IEnumerable<SensorSettings>> GetSensorSettingsAsync()
     {
         const string sql =
@@ -157,17 +163,18 @@ public class DataRepository : IDataRepository
                 formula, 
                 ui_config as UiConfigJson,
                 updated_at
-                -- data_type пока пропускаем или требуем TypeHandler, если Dapper не сможет скастить
+                -- data_type пока не выбираем явно или полагаемся на дефолт,
+                -- т.к. Dapper требует TypeHandler для Postgres ENUM
             FROM sensor_settings
             WHERE device_id IS NOT NULL";
 
         try
         {
             using var conn = CreateConnection();
-            // ВАЖНО: Dapper по умолчанию не умеет маппить Postgres ENUM в C# ENUM без регистрации обработчика.
-            // Для упрощения сейчас мы можем читать data_type отдельно или зарегистрировать маппер.
-            // В данном коде мы полагаемся на то, что SensorDataType имеет дефолтное значение ANALOG,
-            // либо нужно добавить NpgsqlDataSourceBuilder.MapEnum<SensorDataType>() при старте.
+            // TODO: Для корректной работы с ENUM (SensorDataType) в будущем стоит добавить MapEnum в конфигурацию NpgsqlDataSource
+            // Сейчас полагаемся на то, что поля совпадают по именам, а Enum маппится по умолчанию (если int) или игнорируется.
+            // В данном запросе data_type пропущен, поэтому DataType в модели будет иметь значение по умолчанию (ANALOG).
+            // Если нужно читать тип, необходимо раскомментировать поле в SQL и добавить хендлер.
 
             var settings = await conn.QueryAsync<SensorSettings>(sql);
             return settings;
@@ -179,6 +186,7 @@ public class DataRepository : IDataRepository
         }
     }
 
+    /// <inheritdoc />
     public async Task<SystemConfig> GetSystemConfigAsync()
     {
         const string sql =
@@ -201,7 +209,7 @@ public class DataRepository : IDataRepository
             using var conn = CreateConnection();
             var config = await conn.QueryFirstOrDefaultAsync<SystemConfig>(sql);
 
-            // Если конфига нет в БД, возвращаем дефолтный (чтобы сервис не падал)
+            // Если конфига нет в БД (таблица пуста), возвращаем дефолтный объект с настройками по умолчанию
             return config ?? new SystemConfig();
         }
         catch (Exception ex)

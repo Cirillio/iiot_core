@@ -1,6 +1,6 @@
 # Архитектура Программно-Аппаратного Комплекса IIoT (v2.1)
 
-**Стек:** .NET 8 / PostgreSQL (TimescaleDB) / Flutter / Vue 3 (Vite) / Docker
+**Стек:** .NET 10 / PostgreSQL (TimescaleDB) / Flutter / Vue 3 (Vite) / Docker
 
 ## 1. Концепция Системы
 
@@ -22,10 +22,10 @@
     *   Образ: `timescale/timescaledb:latest-pg15`.
     *   Функции: Гипертаблицы, непрерывная агрегация, фоновое сжатие (90%+ экономии места).
 2.  **`client` (Modbus Collector):**
-    *   .NET 8 Worker Service.
+    *   .NET 10 Worker Service.
     *   Опрос железа (ADAM-6017) и первичная обработка.
 3.  **`gateway` (Web API):**
-    *   .NET 8 Minimal API + Embedded Frontend.
+    *   .NET 10 Minimal API + Embedded Frontend.
     *   Раздает статику Vue-админки и управляет SignalR потоками.
 4.  **`tunnel` (Cloudflared):**
     *   Обеспечивает доступ по `https://api.domain.com`.
@@ -35,7 +35,8 @@
 ### 3.1. Modbus Client (Collector Service)
 
 *   **Масштабируемость:** Использует таблицу `devices` для получения списка IP-адресов оборудования.
-*   **Offline Buffering:** При потере связи с БД кэширует данные локально, затем выгружает пачкой.
+*   **Offline Buffering:** При потере связи с БД кэширует данные локально в **SQLite (WAL mode)**, затем выгружает пачкой (FIFO).
+*   **High Performance:** Использует **PostgreSQL Binary COPY** для сверхбыстрой вставки метрик.
 *   **Deadband:** Фильтрует "шум", записывая только значимые изменения.
 *   **Heartbeat:** Принудительная запись точки раз в период, если значение не меняется.
 

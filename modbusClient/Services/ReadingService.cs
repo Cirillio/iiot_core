@@ -3,8 +3,12 @@ using ModbusClient.Models;
 
 namespace ModbusClient.Services;
 
+/// <summary>
+/// Сервис для обработки "сырых" значений с датчиков.
+/// </summary>
 public class ReadingService : IReadingService
 {
+    /// <inheritdoc />
     public IEnumerable<Metric> ProcessAnalog(
         IEnumerable<(int Port, ushort Val)> rawData,
         IEnumerable<SensorSettings> sensors
@@ -19,7 +23,7 @@ public class ReadingService : IReadingService
                 s.PortNumber == port && s.DataType == SensorDataType.ANALOG
             );
             if (sensor == null)
-                continue;
+                continue; // Если датчик не настроен в БД, пропускаем данные
 
             yield return new Metric
             {
@@ -31,6 +35,7 @@ public class ReadingService : IReadingService
         }
     }
 
+    /// <inheritdoc />
     public IEnumerable<Metric> ProcessDigital(
         IEnumerable<(int Port, bool Val)> rawData,
         IEnumerable<SensorSettings> sensors
@@ -56,6 +61,13 @@ public class ReadingService : IReadingService
         }
     }
 
+    /// <summary>
+    /// Вычисляет физическое значение аналогового сигнала.
+    /// Использует линейную интерполяцию.
+    /// </summary>
+    /// <param name="raw">Сырое значение (0-65535).</param>
+    /// <param name="s">Настройки сенсора.</param>
+    /// <returns>Откалиброванное значение.</returns>
     private static double CalculateAnalog(double raw, SensorSettings s)
     {
         // Защита от деления на ноль

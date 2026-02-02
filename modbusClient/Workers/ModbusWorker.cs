@@ -8,6 +8,10 @@ using ModbusClient.Models;
 
 namespace ModbusClient.Workers;
 
+/// <summary>
+/// Основной фоновый сервис (Worker), управляющий циклом опроса Modbus-устройств.
+/// Реализует логику сбора данных, буферизации, health-check'ов и обновления конфигурации.
+/// </summary>
 public class ModbusWorker(
     IServiceScopeFactory scopeFactory,
     IDeviceService deviceService,
@@ -18,24 +22,34 @@ public class ModbusWorker(
     ILogger<ModbusWorker> logger
 ) : BackgroundService
 {
+    // Volatile поля для потокобезопасного доступа из разных циклов
     private volatile int _failedDevicesCount = 0;
     private volatile string? _lastGlobalError = null;
 
+    // Локальный кэш конфигурации
     private List<Device> _devices = [];
     private Dictionary<int, List<SensorSettings>> _sensorCache = [];
+
+    // Кэш последних сохраненных значений для реализации Deadband (пороговой записи)
+    // Key: SensorId, Value: (Value, Timestamp)
     private readonly ConcurrentDictionary<int, (double Value, DateTime Time)> _lastSavedValues =
         new();
 
     private volatile SystemConfig _currentConfig = new();
 
+    /// <summary>
+    /// Точка входа в фоновый процесс.
+    /// Запускает параллельные задачи (Loops) для опроса, конфига, мониторинга и буфера.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Modbus Worker v3.4 (Offline Buffering) started");
 
-        // 1. Initialize local buffer
+        // 1. Инициализация локального SQLite буфера
         await buffer.InitializeAsync();
 
-        // 2. Initial Load with Retry Policy
+        // 2. Первоначальная загрузка конфигурации с повторными попытками
+        // Если БД недоступна при старте, сервис не запустится.
         if (!await TryInitializeConfigAsync(stoppingToken))
         {
             logger.LogCritical("Failed to load initial configuration. Stopping service.");
@@ -43,15 +57,20 @@ public class ModbusWorker(
             return;
         }
 
-        // 3. Start Loops
-        var pollTask = RunDynamicPollingLoop(stoppingToken);
-        var configTask = RunConfigLoop(stoppingToken);
-        var healthTask = RunHealthLoop(stoppingToken);
-        var bufferTask = RunBufferFlusherLoop(stoppingToken);
+        // 3. Запуск независимых циклов обработки
+        var pollTask = RunDynamicPollingLoop(stoppingToken); // Основной опрос устройств
+        var configTask = RunConfigLoop(stoppingToken); // Периодическое обновление настроек
+        var healthTask = RunHealthLoop(stoppingToken); // Отправка Heartbeat статуса в БД
+        var bufferTask = RunBufferFlusherLoop(stoppingToken); // Фоновая выгрузка из буфера
 
+        // 4. Ожидание завершения всех задач
+        // Ожидание завершения всех задач (обычно при отмене токена)
         await Task.WhenAll(pollTask, configTask, healthTask, bufferTask);
     }
 
+    /// <summary>
+    /// Пытается загрузить конфигурацию при старте с экспоненциальной задержкой (Backoff).
+    /// </summary>
     private async Task<bool> TryInitializeConfigAsync(CancellationToken ct)
     {
         const int maxRetries = 10;
@@ -86,12 +105,16 @@ public class ModbusWorker(
                     return false;
                 }
 
-                delay = Math.Min(delay * 2, 30000);
+                delay = Math.Min(delay * 2, 30000); // Max delay 30s
             }
         }
         return false;
     }
 
+    /// <summary>
+    /// Цикл динамического опроса.
+    /// Поддерживает изменение интервала опроса на лету без перезапуска сервиса.
+    /// </summary>
     private async Task RunDynamicPollingLoop(CancellationToken ct)
     {
         var currentInterval = _currentConfig.PollingIntervalMs;
@@ -106,6 +129,7 @@ public class ModbusWorker(
             {
                 await timer.WaitForNextTickAsync(ct);
 
+                // Проверяем, изменился ли интервал в конфиге
                 if (
                     _currentConfig.PollingIntervalMs != currentInterval
                     && _currentConfig.PollingIntervalMs > 0
@@ -130,6 +154,9 @@ public class ModbusWorker(
         }
     }
 
+    /// <summary>
+    /// Выполняет один полный цикл опроса всех активных устройств.
+    /// </summary>
     private async Task ProcessPollingCycle(CancellationToken ct)
     {
         try
@@ -138,6 +165,8 @@ public class ModbusWorker(
             var repository = scope.ServiceProvider.GetRequiredService<IDataRepository>();
 
             var allMetrics = new List<Metric>();
+
+            // Параллельный опрос всех устройств
             var results = await Task.WhenAll(_devices.Select(d => ReadDeviceAsync(d, ct)));
 
             foreach (var r in results)
@@ -152,12 +181,14 @@ public class ModbusWorker(
             {
                 try
                 {
+                    // Попытка сохранить в основную БД (TimescaleDB)
                     await repository.SaveMetricsAsync(allMetrics);
                     if (_lastGlobalError?.StartsWith("DB Error") == true)
                         _lastGlobalError = null;
                 }
                 catch (Exception ex)
                 {
+                    // Если основная БД недоступна — пишем в локальный буфер
                     _lastGlobalError = $"DB Error: {ex.Message}";
                     logger.LogWarning(
                         "Postgres unreachable. Buffering {Count} metrics to SQLite.",
@@ -174,6 +205,9 @@ public class ModbusWorker(
         }
     }
 
+    /// <summary>
+    /// Читает данные с одного конкретного устройства (Аналоговые + Дискретные входы).
+    /// </summary>
     private async Task<(bool Success, IEnumerable<Metric> Metrics)> ReadDeviceAsync(
         Device device,
         CancellationToken ct
@@ -181,20 +215,24 @@ public class ModbusWorker(
     {
         try
         {
+            // Получаем соединение из пула
             var master = await deviceService.GetConnectionAsync(device, ct);
             if (master == null)
                 return (false, []);
 
+            // Чтение регистров
             var analogRaw = await modbusDriver.ReadAnalogAsync(master);
             var digitalRaw = await modbusDriver.ReadDigitalAsync(master);
 
             if (!_sensorCache.TryGetValue(device.Id, out var sensors))
                 return (true, []);
 
+            // Преобразование сырых данных в метрики
             var rawMetrics = new List<Metric>();
             rawMetrics.AddRange(readingService.ProcessAnalog(analogRaw, sensors));
             rawMetrics.AddRange(readingService.ProcessDigital(digitalRaw, sensors));
 
+            // Фильтрация (Deadband)
             var filteredMetrics = new List<Metric>();
             foreach (var m in rawMetrics)
             {
@@ -211,18 +249,23 @@ public class ModbusWorker(
         catch (Exception ex)
         {
             logger.LogWarning("Device {Name}: {Msg}", device.Name, ex.Message);
+            // Сбрасываем соединение при ошибке ввода-вывода
             deviceService.InvalidateConnection(device.Id);
             return (false, []);
         }
     }
 
+    /// <summary>
+    /// Фоновый цикл, который периодически проверяет буфер и пытается отправить накопленные данные в основную БД.
+    /// Работает, когда связь с БД восстанавливается.
+    /// </summary>
     private async Task RunBufferFlusherLoop(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                // Wait between flush attempts
+                // Пауза между попытками сброса буфера
                 await Task.Delay(5000, ct);
 
                 var count = await buffer.CountAsync();
@@ -232,6 +275,8 @@ public class ModbusWorker(
                 using var scope = scopeFactory.CreateScope();
                 var repository = scope.ServiceProvider.GetRequiredService<IDataRepository>();
 
+                // Берем пачку данных (Peek), пробуем сохранить, затем удаляем (Remove)
+                // Это гарантирует сохранность данных при ошибке в момент сохранения
                 var metrics = await buffer.PeekAsync(1000);
                 var metricsList = metrics.ToList();
                 if (metricsList.Count == 0)
@@ -248,7 +293,7 @@ public class ModbusWorker(
                 }
                 catch
                 {
-                    // Ignore, DB still down. Log rarely if needed.
+                    // БД всё ещё недоступна, пробуем позже
                 }
             }
             catch (OperationCanceledException)
@@ -262,30 +307,43 @@ public class ModbusWorker(
         }
     }
 
+    /// <summary>
+    /// Логика Deadband (Зоны нечувствительности).
+    /// Определяет, нужно ли сохранять метрику или она не изменилась достаточно сильно.
+    /// </summary>
     private bool ShouldSaveMetric(Metric m, SensorSettings s)
     {
+        // Если первое значение - сохраняем всегда
         if (!_lastSavedValues.TryGetValue(m.SensorId, out var last))
             return true;
+
+        // Если прошло много времени (Heartbeat данных) - сохраняем принудительно
         if ((m.Time - last.Time).TotalSeconds >= _currentConfig.DataHeartbeatSec)
             return true;
 
         if (s.DataType == SensorDataType.ANALOG)
         {
+            // Проверка изменения на % от диапазона датчика
             var delta = Math.Abs(m.Value - last.Value);
             var range = Math.Abs(s.OutputMax - s.OutputMin);
             if (range < 0.0001)
-                range = 100.0;
+                range = 100.0; // Дефолтный диапазон, если не задан
+
             return delta > range * _currentConfig.DeadbandThreshold;
         }
 
         if (s.DataType == SensorDataType.DIGITAL)
         {
+            // Для дискретных сохраняем только изменение состояния (0->1 или 1->0)
             return Math.Abs(m.Value - last.Value) > 0.5;
         }
 
         return true;
     }
 
+    /// <summary>
+    /// Периодически обновляет конфигурацию из БД (новые устройства, изменившиеся уставки датчиков).
+    /// </summary>
     private async Task RunConfigLoop(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -310,6 +368,10 @@ public class ModbusWorker(
         }
     }
 
+    /// <summary>
+    /// Периодически обновляет статус сервиса (Alive) в БД.
+    /// Позволяет мониторингу понять, что сборщик жив, даже если нет данных.
+    /// </summary>
     private async Task RunHealthLoop(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -334,6 +396,9 @@ public class ModbusWorker(
         }
     }
 
+    /// <summary>
+    /// Формирует и отправляет статус системы.
+    /// </summary>
     private async Task SendHeartbeatAsync()
     {
         using var scope = scopeFactory.CreateScope();
@@ -382,6 +447,7 @@ public class ModbusWorker(
         _devices = [.. await repository.GetActiveDevicesAsync()];
 
         var allSensors = await repository.GetSensorSettingsAsync();
+        // Группируем датчики по DeviceId для быстрого доступа в цикле опроса
         _sensorCache = allSensors
             .Where(s => s.DeviceId.HasValue)
             .GroupBy(s => s.DeviceId!.Value)

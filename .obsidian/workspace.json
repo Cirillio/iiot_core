@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Docs/Модернизация Modbus Systemal features (Планирование).md",
+                "file": "Docs/АРМ Инженера IIoT (Nuxt 4).md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Модернизация Modbus Systemal features (Планирование)"
+              "title": "АРМ Инженера IIoT (Nuxt 4)"
             }
           }
         ]
@@ -185,20 +185,20 @@
   },
   "active": "5fa74d3838fc84e8",
   "lastOpenFiles": [
+    "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
+    "Docs/Модернизация Modbus Systemal features (Реализация).md",
+    "server-20260202-105314.log",
+    "server-20260202-105236.log",
+    "server-20260202-104435.log",
+    "server-20260202-103831.log",
+    "Docs/АРМ Инженера IIoT (Nuxt 4).md",
+    "Docs/Модернизация Modbus Systemal features (Планирование).md",
+    "server-20260202-093345.log",
     "modbusClient/Repositories/SqliteBufferRepository.cs",
     "modbusClient/Interfaces/IBufferRepository.cs",
     "modbusClient/obj/de2ca553-b097-4873-9fd9-e47658083d25.tmp",
     "modbusClient/obj/eab24d02-3457-4d0f-9c57-e1579672f98d.tmp",
     "modbusClient/obj/5f32e04e-4754-424b-8013-75f176ddb8e4.tmp",
-    "modbusClient/obj/d4c18176-f1d0-427a-9706-1cb985dd1944.tmp",
-    "modbusClient/obj/8278dd86-a8f5-4caf-900b-536e00d53f03.tmp",
-    "modbusClient/obj/4b250344-4168-4b02-bb2f-d0a2405b0c0e.tmp",
-    "server-20260131-193409.log",
-    "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
-    "server-20260131-094758.log",
-    "modbusClient/obj/dd6ee5d1-c4a3-4ead-9743-9ddc43404afa.tmp",
-    "Docs/АРМ Инженера IIoT (Vue 3).md",
-    "Docs/Модернизация Modbus Systemal features (Планирование).md",
     "Docs/usefuls.md",
     "db.md",
     "templs/prototyping.md",

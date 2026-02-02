@@ -7,16 +7,28 @@ using NModbus;
 
 namespace ModbusClient.Interfaces;
 
+/// <summary>
+/// Сервис управления соединениями с Modbus-устройствами.
+/// Отвечает за создание, кэширование и восстановление подключений.
+/// </summary>
 public interface IDeviceService
 {
     /// <summary>
-    /// Возвращает готового мастера для устройства.
-    /// Если соединения нет — пытается подключиться.
+    /// Получает активный экземпляр Modbus Master для указанного устройства.
+    /// Если соединение уже установлено и активно, возвращает его.
+    /// Если соединения нет, пытается подключиться.
     /// </summary>
+    /// <param name="device">Устройство, к которому нужно подключиться.</param>
+    /// <param name="ct">Токен отмены операции.</param>
+    /// <returns>
+    /// Экземпляр <see cref="IModbusMaster"/> или null, если подключение не удалось.
+    /// </returns>
     Task<IModbusMaster?> GetConnectionAsync(Device device, CancellationToken ct);
 
     /// <summary>
-    /// Принудительно разрывает соединение (например, при ошибке ввода-вывода).
+    /// Принудительно помечает соединение с устройством как невалидное (например, при ошибке IO).
+    /// При следующем запросе <see cref="GetConnectionAsync"/> будет предпринята попытка переподключения.
     /// </summary>
+    /// <param name="deviceId">ID устройства, соединение с которым нужно сбросить.</param>
     void InvalidateConnection(int deviceId);
 }
