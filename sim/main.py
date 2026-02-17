@@ -1,45 +1,58 @@
 import asyncio
 import math
+import logging
 from datetime import datetime
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusDeviceContext, ModbusServerContext
 
-# Настройка хранилища
-# di = Discrete Inputs (цифровые входы)
-# hr = Holding Registers (аналоговые входы)
-store = ModbusDeviceContext(
-    di=ModbusSequentialDataBlock(0, [0]*10),
-    hr=ModbusSequentialDataBlock(0, [0]*10)
-)
-context = ModbusServerContext(devices=store, single=True)
+logging.basicConfig()
+log = logging.getLogger()
+log.setLevel(logging.INFO)
 
-async def update_values(context):
-    """Имитация датчика на канале 7"""
-    counter = 0
-    slave_id = 0x01 
+def setup_context():
+    store = ModbusDeviceContext(
+        di=ModbusSequentialDataBlock(0, [0]*100), 
+        co=ModbusSequentialDataBlock(0, [0]*100), 
+        hr=ModbusSequentialDataBlock(0, [0]*100), 
+        ir=ModbusSequentialDataBlock(0, [0]*100)  
+    )
+    return ModbusServerContext(devices=store, single=True)
+
+async def update_values_loop(context):
+    counter = 0.0
+    slave_id = 0x01
+
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Симулятор запущен (3 канала).")
+
     while True:
-        now = datetime.now()
-        await asyncio.sleep(1)
-        # RAW значение от 0 до 65535
-        val = int((math.sin(counter) + 1) * 32767)
-        
-        # Запись в Holding Registers (3) на адрес 7
-        context[slave_id].setValues(3, 7, [val])
-        
-        # Переключение цифрового порта 0
-        digital_val = 1 if (int(counter) % 2 == 0) else 0
-        context[slave_id].setValues(2, 0, [digital_val])
-        
-        print(f"{now.strftime('%H:%M:%S')} | Update: AI(7)={val} | DI(0)={digital_val}")
-        counter += 0.2
+        try:
+            # 1. ANALOG 1 (Port 7) - Temperature
+            val_7 = int((math.sin(counter) + 1) * 32767)
+            
+            # 2. ANALOG 2 (Port 6) - Pressure
+            val_6 = int((math.cos(counter * 0.5) + 1) * 32767)
 
-async def main():
-    print("Симулятор ADAM-6017 запущен на порту 5020...")
-    asyncio.create_task(update_values(context))
+            context[slave_id].setValues(4, 7, [val_7])
+            context[slave_id].setValues(4, 6, [val_6])
+
+            # 3. DIGITAL (Port 0) - Pump Status (blinks every cycle)
+            digital_val = 1 if (int(counter * 2) % 2 == 0) else 0
+            context[slave_id].setValues(2, 0, [digital_val])
+
+            if int(counter * 5) % 5 == 0:
+                print(f"{datetime.now().strftime('%H:%M:%S')} | AI(7)={val_7} | AI(6)={val_6} | DI(0)={digital_val}")
+
+            counter += 0.1
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            print(f"Ошибка: {e}")
+            await asyncio.sleep(1)
+
+async def run_server():
+    context = setup_context()
+    asyncio.create_task(update_values_loop(context))
     await StartAsyncTcpServer(context=context, address=("0.0.0.0", 5020))
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nОстановка.")
+    asyncio.run(run_server())

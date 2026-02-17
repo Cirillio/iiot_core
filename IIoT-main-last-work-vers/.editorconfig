@@ -1,4 +1,0 @@
-﻿[*.{cs,vb}]
-
-# IDE0044: Добавить модификатор только для чтения
-dotnet_diagnostic.IDE0044.severity = silent
