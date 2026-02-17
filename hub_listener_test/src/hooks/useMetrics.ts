@@ -36,7 +36,13 @@ export const useMetrics = (hubUrl: string) => {
           };
         });
 
-        setGlobalHistory(prev => [data, ...prev].slice(0, 50));
+        setGlobalHistory(prev => {
+          // Проверка на дубликаты по времени и ID датчика
+          const isDuplicate = prev.some(m => m.SensorId === data.SensorId && m.Time === data.Time);
+          if (isDuplicate) return prev;
+          
+          return [data, ...prev].slice(0, 50);
+        });
       } catch (e) {
         console.error("Error parsing metric:", e);
       }

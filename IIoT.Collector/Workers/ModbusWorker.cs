@@ -224,33 +224,29 @@ public class ModbusWorker(
             var analogRaw = (await modbusDriver.ReadAnalogAsync(master)).ToList();
             var digitalRaw = (await modbusDriver.ReadDigitalAsync(master)).ToList();
 
-            if (analogRaw.Count > 0 || digitalRaw.Count > 0)
-            {
-                foreach (var a in analogRaw)
-                    logger.LogDebug(
-                        "Device {Name}: Port {Port} raw value = {Val}",
-                        device.Name,
-                        a.Port,
-                        a.Value
-                    );
-            }
-
             if (!_sensorCache.TryGetValue(device.Id, out var sensors))
                 return (true, []);
+
+            // Логируем только те порты, которые есть в конфиге (убираем шум)
+            foreach (var a in analogRaw)
+            {
+                if (sensors.Any(s => s.PortNumber == a.Port && s.DataType == SensorDataType.ANALOG))
+                {
+                    logger.LogTrace("Device {Name}: Port {Port} raw ANALOG = {Val}", device.Name, a.Port, a.Value);
+                }
+            }
+            foreach (var d in digitalRaw)
+            {
+                if (sensors.Any(s => s.PortNumber == d.Port && s.DataType == SensorDataType.DIGITAL))
+                {
+                    logger.LogTrace("Device {Name}: Port {Port} raw DIGITAL = {Val}", device.Name, d.Port, d.Value);
+                }
+            }
 
             // Преобразование сырых данных в метрики
             var rawMetrics = new List<Metric>();
             rawMetrics.AddRange(processService.ProcessAnalog(analogRaw, sensors));
             rawMetrics.AddRange(processService.ProcessDigital(digitalRaw, sensors));
-
-            if (rawMetrics.Count > 0)
-            {
-                logger.LogDebug(
-                    "Device {Name}: Read {Count} raw metrics",
-                    device.Name,
-                    rawMetrics.Count
-                );
-            }
 
             // Фильтрация (Deadband)
             var filteredMetrics = new List<Metric>();
@@ -344,11 +340,17 @@ public class ModbusWorker(
     {
         // Если первое значение - сохраняем всегда
         if (!_lastSavedValues.TryGetValue(m.SensorId, out var last))
+        {
+            logger.LogDebug("Sensor {Id}: First value, saving.", m.SensorId);
             return true;
+        }
 
         // Если прошло много времени (Heartbeat данных) - сохраняем принудительно
         if ((m.Time - last.Time).TotalSeconds >= _currentConfig.DataHeartbeatSec)
+        {
+            logger.LogDebug("Sensor {Id}: Heartbeat timeout, forcing save.", m.SensorId);
             return true;
+        }
 
         if (s.DataType == SensorDataType.ANALOG)
         {
@@ -358,13 +360,26 @@ public class ModbusWorker(
             if (range < 0.0001)
                 range = 100.0; // Дефолтный диапазон, если не задан
 
-            return delta > range * _currentConfig.DeadbandThreshold;
+            var threshold = range * _currentConfig.DeadbandThreshold;
+            var shouldSave = delta > threshold;
+
+            if (!shouldSave)
+            {
+                logger.LogTrace("Sensor {Id}: Delta {Delta} <= Threshold {Thr}, skipping.", m.SensorId, delta, threshold);
+            }
+
+            return shouldSave;
         }
 
         if (s.DataType == SensorDataType.DIGITAL)
         {
             // Для дискретных сохраняем только изменение состояния (0->1 или 1->0)
-            return Math.Abs(m.Value - last.Value) > 0.5;
+            var changed = Math.Abs(m.Value - last.Value) > 0.5;
+            if (!changed)
+            {
+                logger.LogTrace("Sensor {Id}: State not changed, skipping.", m.SensorId);
+            }
+            return changed;
         }
 
         return true;
@@ -481,5 +496,17 @@ public class ModbusWorker(
             .Where(s => s.DeviceId.HasValue)
             .GroupBy(s => s.DeviceId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var device in _devices)
+        {
+            if (_sensorCache.TryGetValue(device.Id, out var sensors))
+            {
+                logger.LogInformation("Loaded {Count} sensors for device {Name}", sensors.Count, device.Name);
+                foreach (var s in sensors)
+                {
+                    logger.LogInformation(" - Sensor {Id}: Port {Port} ({Type})", s.SensorId, s.PortNumber, s.DataType);
+                }
+            }
+        }
     }
 }
