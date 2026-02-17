@@ -3,7 +3,7 @@ version: "3.8"
 services:
   # database (PostgreSQL)
   db:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
     container_name: adam_db
     restart: always
     environment:
@@ -14,7 +14,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./iiot_init.sql:/docker-entrypoint-initdb.d/init.sql
 
   # modbus client
   client:
@@ -22,7 +22,8 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     build:
-      context: ./modbusClient
+      context: .
+      dockerfile: IIoT.Collector/Dockerfile
     container_name: modbus_client
     environment:
       - ConnectionStrings__ADAMDB=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
@@ -46,15 +47,17 @@ services:
   # TCP web api
   gateway:
     build:
-      context: ./modbusWebGateway
+      context: .
+      dockerfile: IIoT.WebApi/Dockerfile
     container_name: modbus_web_gatewey
+    environment:
+      - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
     ports:
       - "8080:80" # Внешний порт
     depends_on:
       - db
     restart: always
-
-  # TODO: Cloudflare without self domen
+    # TODO: Cloudflare without self domen
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared

@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  # database (TimescaleDB)
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: adam_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 1qaz2wsx
+      POSTGRES_DB: AdamMonitoring
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # modbus client
+  client:
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    build:
+      context: ./modbusClient
+    container_name: modbus_client
+    environment:
+      - ConnectionStrings__ADAMDB=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
+      - ModbusSettings__IpAddress=sim
+      - ModbusSettings__Port=5020
+      - Serilog__MinimumLevel=Debug
+    depends_on:
+      - db
+      - sim
+    restart: always
+
+  # modbus simulator
+  sim:
+    build:
+      context: ./sim
+    container_name: modbus_sim
+    ports:
+      - "5020:5020"
+    restart: always
+
+  # TCP web api
+  gateway:
+    build:
+      context: ./modbusWebGateway
+    container_name: modbus_web_gatewey
+    ports:
+      - "8080:80" # Внешний порт
+    depends_on:
+      - db
+    restart: always
+
+  # TODO: Cloudflare without self domen
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - gateway
+    restart: always
+
+volumes:
+  pgdata:
