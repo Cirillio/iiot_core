@@ -9,7 +9,6 @@ from pymodbus.datastore import ModbusSequentialDataBlock, ModbusDeviceContext, M
 # hr = Holding Registers (аналоговые входы)
 store = ModbusDeviceContext(
     di=ModbusSequentialDataBlock(0, [0]*10),
-    
     hr=ModbusSequentialDataBlock(0, [0]*10)
 )
 context = ModbusServerContext(devices=store, single=True)
@@ -17,6 +16,7 @@ context = ModbusServerContext(devices=store, single=True)
 async def update_values(context):
     """Имитация датчика на канале 7"""
     counter = 0
+    slave_id = 0x01 
     while True:
         now = datetime.now()
         await asyncio.sleep(1)
@@ -24,14 +24,13 @@ async def update_values(context):
         val = int((math.sin(counter) + 1) * 32767)
         
         # Запись в Holding Registers (3) на адрес 7
-        slave_id = 0x00 
         context[slave_id].setValues(3, 7, [val])
         
         # Переключение цифрового порта 0
         digital_val = 1 if (int(counter) % 2 == 0) else 0
         context[slave_id].setValues(2, 0, [digital_val])
         
-        print(f"{now.strftime('%H:%M:%S')} | Update: Analog(7)={val} | Digital(0)={digital_val}")
+        print(f"{now.strftime('%H:%M:%S')} | Update: AI(7)={val} | DI(0)={digital_val}")
         counter += 0.2
 
 async def main():

@@ -68,7 +68,7 @@ make down
 
 ## ⚙️ Конфигурация
 
-Настройки портов и подключений находятся в `docker-compose.yml` и `modbusClient/appsettings.json`.
+Настройки портов и подключений находятся в `docker-compose.yml` и `IIoT.Collector/appsettings.json`.
 
 - **Modbus Port:** 5020 (Simulator)
 - **Web API Port:** 8080

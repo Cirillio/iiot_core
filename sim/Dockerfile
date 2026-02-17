@@ -6,4 +6,4 @@ RUN pip install --no-cache-dir pymodbus
 
 COPY main.py .
 
-CMD ["python", "main.py"]
+CMD ["python", "-u", "main.py"]

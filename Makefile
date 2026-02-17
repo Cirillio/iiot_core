@@ -4,7 +4,7 @@ DOCKER = sudo docker
 # Список контейнеров для ручного удаления (Nuclear Option)
 CONTAINERS = modbus_client modbus_web_gatewey adam_db modbus_sim
 
-.PHONY: help up down restart status logs logs-client logs-sim logs-gateway clean db-shell shell-client
+.PHONY: help up up-db up-client up-sim up-gateway up-cloudflared down restart status logs logs-client logs-sim logs-gateway clean db-shell shell-client
 
 # Помощь (выводится по умолчанию)
 help:
@@ -12,6 +12,10 @@ help:
 	@echo "----------------------------------------------------------------"
 	@echo "Команды:"
 	@echo "  make up          -> Собрать и запустить все контейнеры (в фоне)"
+	@echo "  make up-db       -> Запустить только базу данных"
+	@echo "  make up-client   -> Запустить только Modbus клиент"
+	@echo "  make up-sim      -> Запустить только симулятор"
+	@echo "  make up-gateway  -> Запустить только Web Gateway"
 	@echo "  make down        -> Остановить контейнеры (без удаления данных)"
 	@echo "  make restart     -> Перезапустить всё (down + up)"
 	@echo "  make status      -> Показать список запущенных контейнеров"
@@ -31,6 +35,21 @@ help:
 # Основные команды
 up:
 	$(DC) up -d --build
+
+up-db:
+	$(DC) up -d db
+
+up-client:
+	$(DC) up -d client
+
+up-sim:
+	$(DC) up -d sim
+
+up-gateway:
+	$(DC) up -d gateway
+
+up-cloudflared:
+	$(DC) up -d cloudflared
 
 down:
 	$(DC) down
@@ -60,9 +79,11 @@ clean:
 	-$(DOCKER) rm $(CONTAINERS)
 	@echo "✅ Готово. Теперь можно запускать 'make up'"
 
+
 # Утилиты
 db-shell:
 	$(DOCKER) exec -it adam_db psql -U admin -d AdamMonitoring
+
 
 shell-client:
 	$(DOCKER) exec -it modbus_client /bin/bash
