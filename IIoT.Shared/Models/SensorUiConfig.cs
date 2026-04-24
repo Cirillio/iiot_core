@@ -1,18 +1,53 @@
 namespace IIoT.Shared.Models;
 
+/// <summary>
+/// Настройки визуализации датчика в пользовательском интерфейсе (Web/Mobile).
+/// Хранится в БД как JSONB.
+/// </summary>
 public record SensorUiConfig
 {
+    /// <summary>
+    /// HEX-код цвета для графиков и индикаторов (напр. "#FF5733").
+    /// </summary>
     public string? Color { get; init; }
-    public string? Icon { get; init; }
 
-    public int MainPagePosition { get; init; }
-    public int GraphPosition { get; init; }
-    public int TablePosition { get; init; }
-    public int AlarmPosition { get; init; }
-    public int HistoryPosition { get; init; }
+    /// <summary>
+    /// Нижний критический порог (авария).
+    /// </summary>
+    public double? MinCritical { get; init; }
 
-    public double? MinCritical { get; init; } // порог "Критически низко".
-    public double? MinWarning { get; init; } // порог "Предупреждение (низкое)".
-    public double? MaxWarning { get; init; } // порог "Предупреждение (высокое)".
-    public double? MaxCritical { get; init; } // порог "Критически высоко".
+    /// <summary>
+    /// Нижний предупредительный порог (внимание).
+    /// </summary>
+    public double? MinWarning { get; init; }
+
+    /// <summary>
+    /// Верхний предупредительный порог (внимание).
+    /// </summary>
+    public double? MaxWarning { get; init; }
+
+    /// <summary>
+    /// Верхний критический порог (авария).
+    /// </summary>
+    public double? MaxCritical { get; init; }
+
+    /// <summary>
+    /// Предупредительный порог для дискретных датчиков.
+    /// </summary>
+    public double? DigitalWarning { get; init; }
+
+    /// <summary>
+    /// Критический порог для дискретных датчиков.
+    /// </summary>
+    public double? DigitalCritical { get; init; }
+
+    /// <summary>
+    /// Метка для состояния 0.
+    /// </summary>
+    public string? LabelZero { get; init; }
+
+    /// <summary>
+    /// Метка для состояния 1.
+    /// </summary>
+    public string? LabelOne { get; init; }
 }

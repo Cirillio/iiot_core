@@ -1,0 +1,16 @@
+**/.git
+**/.idea
+**/.vscode
+**/.obsidian
+**/bin
+**/obj
+**/node_modules
+Презентация/
+Docs/
+hub_listener_test/
+iiot_monitoring/
+mobile_mockup_react/
+sim/
+templs/
+*.heapsnapshot
+*.log

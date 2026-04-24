@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using IIoT.Collector.Interfaces;
 using IIoT.Shared.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,10 +20,11 @@ public class ModbusWorker(
     IModbusService modbusDriver,
     IBufferRepository buffer,
     IHostApplicationLifetime hostLifetime,
+    Microsoft.Extensions.Configuration.IConfiguration configuration,
     ILogger<ModbusWorker> logger
 ) : BackgroundService
 {
-    // Volatile поля для потокобезопасного доступа из разных циклов
+    // ... (existing fields)
     private volatile int _failedDevicesCount = 0;
     private volatile string? _lastGlobalError = null;
 
@@ -43,7 +45,7 @@ public class ModbusWorker(
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Modbus Worker v3.4 (Offline Buffering) started");
+        logger.LogInformation("Modbus Worker v3.5 (Real-time Config) started");
 
         // 1. Инициализация локального SQLite буфера
         await buffer.InitializeAsync();
@@ -59,13 +61,58 @@ public class ModbusWorker(
 
         // 3. Запуск независимых циклов обработки
         var pollTask = RunDynamicPollingLoop(stoppingToken); // Основной опрос устройств
-        var configTask = RunConfigLoop(stoppingToken); // Периодическое обновление настроек
+        var configTask = RunConfigLoop(stoppingToken); // Периодическое обновление настроек (резервное)
+        var listenerTask = RunConfigListenerLoop(stoppingToken); // Мгновенное обновление по NOTIFY
         var healthTask = RunHealthLoop(stoppingToken); // Отправка Heartbeat статуса в БД
         var bufferTask = RunBufferFlusherLoop(stoppingToken); // Фоновая выгрузка из буфера
 
         // 4. Ожидание завершения всех задач
-        // Ожидание завершения всех задач (обычно при отмене токена)
-        await Task.WhenAll(pollTask, configTask, healthTask, bufferTask);
+        await Task.WhenAll(pollTask, configTask, listenerTask, healthTask, bufferTask);
+    }
+
+    /// <summary>
+    /// Слушает канал 'config_changed' в Postgres для мгновенного перечитывания настроек.
+    /// Это позволяет избежать ожидания в 60 секунд при изменении интервала опроса.
+    /// </summary>
+    private async Task RunConfigListenerLoop(CancellationToken ct)
+    {
+        var connectionString = configuration.GetConnectionString("ADAMDB");
+        if (string.IsNullOrEmpty(connectionString)) return;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var conn = new Npgsql.NpgsqlConnection(connectionString);
+                await conn.OpenAsync(ct);
+
+                // Подписка на уведомление
+                conn.Notification += async (o, e) =>
+                {
+                    logger.LogInformation("Real-time configuration change detected (Channel: {Channel})", e.Channel);
+                    await ReloadConfigurationAsync();
+                };
+
+                using (var cmd = new Npgsql.NpgsqlCommand("LISTEN config_changed", conn))
+                {
+                    await cmd.ExecuteNonQueryAsync(ct);
+                }
+
+                logger.LogInformation("Listening for real-time config changes...");
+
+                while (!ct.IsCancellationRequested)
+                {
+                    // Ожидаем уведомления без блокировки потока
+                    await conn.WaitAsync(ct);
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                logger.LogWarning("Config listener connection lost. Retrying in 5s... Error: {Msg}", ex.Message);
+                await Task.Delay(5000, ct);
+            }
+        }
     }
 
     /// <summary>
@@ -221,8 +268,8 @@ public class ModbusWorker(
                 return (false, []);
 
             // Чтение регистров
-            var analogRaw = (await modbusDriver.ReadAnalogAsync(master)).ToList();
-            var digitalRaw = (await modbusDriver.ReadDigitalAsync(master)).ToList();
+            var analogRaw = (await modbusDriver.ReadAnalogAsync(master, (byte)device.SlaveId)).ToList();
+            var digitalRaw = (await modbusDriver.ReadDigitalAsync(master, (byte)device.SlaveId)).ToList();
 
             if (!_sensorCache.TryGetValue(device.Id, out var sensors))
                 return (true, []);

@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using IIoT.Shared.Models;
 using IIoT.WebApi.Core.Interfaces;
 using IIoT.WebApi.Data.Repositories;
@@ -18,7 +21,22 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+// Configure Routing to use lowercase URLs
+builder.Services.Configure<RouteOptions>(options =>
+{
+    options.LowercaseUrls = true;
+});
+
+// Configure FluentValidation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -27,12 +45,16 @@ builder.Services.AddSingleton<DapperContext>();
 
 // Register Repositories
 builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
+builder.Services.AddScoped<ISensorRepository, SensorRepository>();
+builder.Services.AddScoped<IMetricsRepository, MetricsRepository>();
+builder.Services.AddScoped<ISystemRepository, SystemRepository>();
 
 // Enable SignalR for real-time communication
 builder.Services.AddSignalR();
 
 // Register the background service that listens for PostgreSQL NOTIFY events
 builder.Services.AddHostedService<MetricsObserverService>();
+builder.Services.AddHostedService<SystemHealthService>();
 
 // Add CORS policy
 builder.Services.AddCors(options =>
@@ -55,13 +77,12 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled for Docker/Cloudflare stability
+
+app.UseMiddleware<IIoT.WebApi.Middleware.GlobalExceptionMiddleware>();
 
 app.UseCors();
 

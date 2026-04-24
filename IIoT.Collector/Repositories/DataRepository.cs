@@ -129,7 +129,7 @@ public class DataRepository : IDataRepository
     {
         const string sql =
             @"
-            SELECT id, name, ip_address, port, is_active, created_at
+            SELECT id, name, ip_address, port, slave_id, is_active, created_at
             FROM devices
             WHERE is_active = true";
 
@@ -192,6 +192,7 @@ public class DataRepository : IDataRepository
                   polling_interval_ms,
                   config_reload_interval_sec,
                   health_check_interval_sec,
+                  COALESCE(ui_update_interval_ms, 2000) as UiUpdateIntervalMs,
                   COALESCE(deadband_threshold, 0.01) as DeadbandThreshold,
                   COALESCE(data_heartbeat_sec, 600) as DataHeartbeatSec,
                   updated_at
