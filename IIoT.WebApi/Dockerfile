@@ -14,6 +14,10 @@ RUN dotnet publish "IIoT.WebApi.csproj" -c Release -o /app/publish /p:UseAppHost
 # 2. Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
+
+# Установка системных зависимостей для Npgsql (Kerberos/GSSAPI)
+RUN apt-get update && apt-get install -y libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 EXPOSE 80

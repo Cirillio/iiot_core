@@ -1,7 +1,6 @@
 version: "3.8"
 
 services:
-  # database (PostgreSQL)
   db:
     image: timescale/timescaledb:latest-pg15
     container_name: adam_db
@@ -10,63 +9,58 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: 1qaz2wsx
       POSTGRES_DB: AdamMonitoring
-    ports:
-      - "5432:5432"
+    ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./iiot_init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # modbus client
   client:
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    build:
-      context: .
-      dockerfile: IIoT.Collector/Dockerfile
+    dns: [8.8.8.8, 8.8.4.4]
+    build: { context: ., dockerfile: IIoT.Collector/Dockerfile, network: host }
     container_name: modbus_client
     environment:
       - ConnectionStrings__ADAMDB=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
       - ModbusSettings__IpAddress=sim
       - ModbusSettings__Port=5020
       - Serilog__MinimumLevel=Debug
-    depends_on:
-      - db
-      - sim
+    depends_on: [db, sim]
     restart: always
 
-  # modbus simulator
   sim:
-    build:
-      context: ./sim
+    build: { context: ./sim, network: host }
     container_name: modbus_sim
-    ports:
-      - "5020:5020"
+    ports: ["5020:5020"]
     restart: always
 
-  # TCP web api
   gateway:
-    build:
-      context: .
-      dockerfile: IIoT.WebApi/Dockerfile
-    container_name: modbus_web_gatewey
+    dns: [8.8.8.8, 8.8.4.4]
+    build: { context: ., dockerfile: IIoT.WebApi/Dockerfile, network: host }
+    container_name: modbus_web_gateway
     environment:
+      - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
-    ports:
-      - "8080:80" # Внешний порт
-    depends_on:
-      - db
+    ports: ["8080:80"]
+    depends_on: [db]
     restart: always
-    # TODO: Cloudflare without self domen
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
-    command: tunnel run
+    network_mode: host
+    restart: always
+    command: ["tunnel", "run"]
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - gateway
-    restart: always
+      - TUNNEL_TRANSPORT_PROTOCOL=http2
+      - TUNNEL_HEARTBEAT_INTERVAL=5s
+      - TUNNEL_HEARTBEAT_COUNT=2
+      - HTTP_PROXY=http://127.0.0.1:10809
+      - HTTPS_PROXY=http://127.0.0.1:10809
+      - NO_PROXY=localhost,127.0.0.1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
 
 volumes:
   pgdata:

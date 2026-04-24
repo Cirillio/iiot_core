@@ -30,18 +30,20 @@ public interface IModbusService
     /// Обычно используется функция Modbus 0x04.
     /// </summary>
     /// <param name="master">Активный Modbus Master.</param>
+    /// <param name="slaveId">Unit ID устройства.</param>
     /// <returns>
     /// Коллекция кортежей (Номер порта/регистра, Сырое значение 0-65535).
     /// </returns>
-    Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master);
+    Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master, byte slaveId);
 
     /// <summary>
     /// Читает значения дискретных входов (Discrete Inputs) с устройства.
     /// Обычно используется функция Modbus 0x02.
     /// </summary>
     /// <param name="master">Активный Modbus Master.</param>
+    /// <param name="slaveId">Unit ID устройства.</param>
     /// <returns>
     /// Коллекция кортежей (Номер порта/входа, Значение True/False).
     /// </returns>
-    Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master);
+    Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master, byte slaveId);
 }

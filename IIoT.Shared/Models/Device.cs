@@ -21,6 +21,11 @@ public record Device
     public List<SensorSettings> Sensors { get; init; } = [];
 
     /// <summary>
+    /// Общее количество датчиков, подключенных к устройству.
+    /// </summary>
+    public int TotalSensors { get; init; }
+
+    /// <summary>
     /// IP-адрес устройства в сети (IPv4).
     /// Например: "192.168.1.50".
     /// </summary>
@@ -31,6 +36,13 @@ public record Device
     /// Значение по умолчанию: 502 (стандартный порт Modbus TCP).
     /// </summary>
     public int Port { get; init; } = 502;
+
+    /// <summary>
+    /// Modbus Unit ID (Slave Address).
+    /// Используется для адресации конкретного устройства на шине или через шлюз.
+    /// Обычно 1 для Modbus TCP, но может варьироваться (1-247).
+    /// </summary>
+    public int SlaveId { get; init; } = 1;
 
     /// <summary>
     /// Флаг активности устройства.

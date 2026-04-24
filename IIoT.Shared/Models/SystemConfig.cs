@@ -57,6 +57,12 @@ public class SystemConfig
     public int DataHeartbeatSec { get; init; } = 600;
 
     /// <summary>
+    /// Интервал обновления данных в пользовательском интерфейсе (в миллисекундах).
+    /// По умолчанию: 2000 мс (2 секунды).
+    /// </summary>
+    public int UiUpdateIntervalMs { get; init; } = 2000;
+
+    /// <summary>
     /// Время последнего обновления конфигурации.
     /// </summary>
     public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;

@@ -15,10 +15,11 @@ public static class SeriLogger
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
             .AddJsonFile(
                 $"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json",
-                optional: true
+                optional: true,
+                reloadOnChange: false
             )
             .AddEnvironmentVariables()
             .Build();

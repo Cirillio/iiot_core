@@ -1,5 +1,5 @@
 # Переменные для команд
-DC = sudo docker-compose
+DC = sudo docker compose
 DOCKER = sudo docker
 # Список контейнеров для ручного удаления (Nuclear Option)
 CONTAINERS = modbus_client modbus_web_gatewey adam_db modbus_sim

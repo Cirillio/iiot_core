@@ -1,5 +1,4 @@
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using IIoT.Collector.Interfaces;
 using NModbus;
 using Serilog;
@@ -14,7 +13,6 @@ public class ModbusService : IModbusService
     private readonly ILogger _logger = Log.ForContext<ModbusService>();
 
     // Константы для ADAM-6017
-    private const byte UnitId = 1;
     private const ushort StartAddress = 0;
     private const ushort AnalogCount = 8;
     private const ushort DigitalCount = 2;
@@ -42,22 +40,9 @@ public class ModbusService : IModbusService
 
             _logger.Debug("Connected to {IP}:{Port}", ip, port);
 
-            // 3. Инициализация (конфигурация каналов)
-            // Некоторые устройства (как ADAM) требуют предварительной записи в регистры для активации каналов
-            try
-            {
-                var config = Enumerable.Repeat(ChannelConfig, (int)AnalogCount).ToArray();
-                await master.WriteMultipleRegistersAsync(UnitId, StartAddress, config);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning(
-                    "Device {IP} connected, but config init failed: {Msg}",
-                    ip,
-                    ex.Message
-                );
-                // Не разрываем связь, возможно чтение всё равно сработает (если уже сконфигурировано)
-            }
+            // Инициализацию каналов (WriteMultipleRegisters) здесь убираем, 
+            // так как она требует конкретный SlaveId, а при коннекте мы его не знаем для всех случаев.
+            // ADAM-6017 обычно настроен статически. Если нужно - перенесем в Read.
 
             return (master, tcpClient);
         }
@@ -69,20 +54,20 @@ public class ModbusService : IModbusService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master)
+    public async Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master, byte slaveId)
     {
         // Function 0x04: Read Input Registers (3xxxx)
-        var data = await master.ReadInputRegistersAsync(UnitId, StartAddress, AnalogCount);
+        var data = await master.ReadInputRegistersAsync(slaveId, StartAddress, AnalogCount);
 
         // Превращаем массив ushort[] в список пар (Порт, Значение)
         return data.Select((val, index) => (index, val));
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master)
+    public async Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master, byte slaveId)
     {
         // Function 0x02: Read Discrete Inputs (1xxxx)
-        var data = await master.ReadInputsAsync(UnitId, StartAddress, DigitalCount);
+        var data = await master.ReadInputsAsync(slaveId, StartAddress, DigitalCount);
 
         return data.Select((val, index) => (index, val));
     }
