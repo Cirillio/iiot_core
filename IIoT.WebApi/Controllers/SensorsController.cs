@@ -72,6 +72,11 @@ public class SensorsController(
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
 
+        if (!Enum.TryParse<ModbusRegisterType>(dto.RegisterType, true, out var regType))
+        {
+            return BadRequest($"Недопустимый тип регистра: {dto.RegisterType}");
+        }
+
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new SensorUiConfig()
             : JsonSerializer.Deserialize<SensorUiConfig>(dto.UiConfig) ?? new SensorUiConfig();
@@ -83,7 +88,16 @@ public class SensorsController(
             Name = dto.Name,
             Slug = dto.Slug,
             DataType = dataType,
+            RegisterAddress = dto.RegisterAddress,
+            RegisterType = regType,
+            RegisterCount = dto.RegisterCount,
             Unit = dto.Unit,
+            InputMin = dto.InputMin,
+            InputMax = dto.InputMax,
+            OutputMin = dto.OutputMin,
+            OutputMax = dto.OutputMax,
+            OffsetVal = dto.OffsetVal,
+            Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -113,6 +127,11 @@ public class SensorsController(
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
 
+        if (!Enum.TryParse<ModbusRegisterType>(dto.RegisterType, true, out var regType))
+        {
+            return BadRequest($"Недопустимый тип регистра: {dto.RegisterType}");
+        }
+
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new SensorUiConfig()
             : JsonSerializer.Deserialize<SensorUiConfig>(dto.UiConfig) ?? new SensorUiConfig();
@@ -123,7 +142,16 @@ public class SensorsController(
             Name = dto.Name,
             Slug = dto.Slug,
             DataType = dataType,
+            RegisterAddress = dto.RegisterAddress,
+            RegisterType = regType,
+            RegisterCount = dto.RegisterCount,
             Unit = dto.Unit,
+            InputMin = dto.InputMin,
+            InputMax = dto.InputMax,
+            OutputMin = dto.OutputMin,
+            OutputMax = dto.OutputMax,
+            OffsetVal = dto.OffsetVal,
+            Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,
         };

@@ -9,26 +9,15 @@ namespace IIoT.Collector.Interfaces;
 public interface IProcessService
 {
     /// <summary>
-    /// Обрабатывает сырые данные с аналоговых портов.
-    /// Сопоставляет порт устройства с настройками сенсора и вычисляет физическое значение.
+    /// Обрабатывает сырые данные с Modbus-устройств.
+    /// Применяет масштабирование, формулы и калибровки согласно настройкам сенсора.
+    /// Поддерживает многорегистровые значения (32-bit).
     /// </summary>
-    /// <param name="rawData">Коллекция сырых данных (Порт, Значение).</param>
-    /// <param name="sensors">Список настроек сенсоров, относящихся к опрашиваемому устройству.</param>
+    /// <param name="rawData">Коллекция сырых данных (SensorId, RawValues массив).</param>
+    /// <param name="sensors">Список всех настроек сенсоров опрашиваемого устройства.</param>
     /// <returns>Коллекция готовых метрик для сохранения.</returns>
-    IEnumerable<Metric> ProcessAnalog(
-        IEnumerable<(int Port, ushort Val)> rawData,
-        IEnumerable<SensorSettings> sensors
-    );
-
-    /// <summary>
-    /// Обрабатывает сырые данные с цифровых (дискретных) портов.
-    /// Сопоставляет порт устройства с настройками сенсора и формирует метрику (0 или 1).
-    /// </summary>
-    /// <param name="rawData">Коллекция сырых данных (Порт, Значение bool).</param>
-    /// <param name="sensors">Список настроек сенсоров, относящихся к опрашиваемому устройству.</param>
-    /// <returns>Коллекция готовых метрик для сохранения.</returns>
-    IEnumerable<Metric> ProcessDigital(
-        IEnumerable<(int Port, bool Val)> rawData,
+    IEnumerable<Metric> Process(
+        IEnumerable<(int SensorId, ushort[] RawValues)> rawData,
         IEnumerable<SensorSettings> sensors
     );
 }

@@ -13,6 +13,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./iiot_init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d AdamMonitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   client:
     dns: [8.8.8.8, 8.8.4.4]
@@ -23,7 +29,11 @@ services:
       - ModbusSettings__IpAddress=sim
       - ModbusSettings__Port=5020
       - Serilog__MinimumLevel=Debug
-    depends_on: [db, sim]
+    depends_on:
+      db:
+        condition: service_healthy
+      sim:
+        condition: service_started
     restart: always
 
   sim:
@@ -40,7 +50,9 @@ services:
       - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=1qaz2wsx
     ports: ["8080:80"]
-    depends_on: [db]
+    depends_on:
+      db:
+        condition: service_healthy
     restart: always
 
   cloudflared:

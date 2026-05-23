@@ -11,6 +11,11 @@ EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
 DO $$ BEGIN
+    CREATE TYPE modbus_register_type AS ENUM ('INPUT_REGISTER', 'HOLDING_REGISTER', 'DISCRETE_INPUT', 'COIL');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
     CREATE TYPE system_service_status AS ENUM ('ONLINE', 'OFFLINE', 'DEGRADED', 'CRITICAL_ERROR', 'MAINTENANCE');
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
@@ -33,6 +38,9 @@ CREATE TABLE IF NOT EXISTS sensor_settings (
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(50) UNIQUE,
     data_type sensor_data_type DEFAULT 'ANALOG',
+    register_address SMALLINT NOT NULL DEFAULT 0,
+    register_type modbus_register_type NOT NULL DEFAULT 'INPUT_REGISTER',
+    register_count SMALLINT NOT NULL DEFAULT 1,
     unit VARCHAR(20),
     input_min DOUBLE PRECISION DEFAULT 0,
     input_max DOUBLE PRECISION DEFAULT 65535,
@@ -56,7 +64,6 @@ CREATE INDEX IF NOT EXISTS ix_metrics_sensor_time ON metrics (sensor_id, time DE
 -- 3. TIMESCALEDB
 SELECT create_hypertable('metrics', 'time', if_not_exists => TRUE);
 
--- Create Materialized View for Hourly Aggregates (Analytics)
 CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_hourly
 WITH (timescaledb.continuous) AS
 SELECT
@@ -69,23 +76,22 @@ FROM metrics
 GROUP BY 1, 2
 WITH NO DATA;
 
--- Add Refresh Policy for metrics_hourly (Continuous Aggregate)
 SELECT add_continuous_aggregate_policy('metrics_hourly',
     start_offset => INTERVAL '1 month',
     end_offset => INTERVAL '1 hour',
     schedule_interval => INTERVAL '1 hour',
     if_not_exists => TRUE);
 
--- 4. FUNCTIONS & TRIGGERS
+-- 4. TRIGGERS ON METRICS
 CREATE OR REPLACE FUNCTION fn_trigger_notify_metrics() RETURNS TRIGGER AS $$
 DECLARE
     payload JSON;
 BEGIN
     payload = json_build_object(
-        'Time', NEW.time,
-        'SensorId', NEW.sensor_id,
-        'RawValue', NEW.raw_value,
-        'Value', NEW.value
+        'time', NEW.time,
+        'sensorId', NEW.sensor_id,
+        'rawValue', NEW.raw_value,
+        'value', NEW.value
     );
     PERFORM pg_notify('metrics_realtime', payload::text);
     RETURN NEW;
@@ -109,7 +115,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Notification function for config change
+-- Trigger on system_config — must be after the table
 CREATE OR REPLACE FUNCTION fn_trigger_notify_config_change() RETURNS trigger AS $$
 BEGIN
     PERFORM pg_notify('config_changed', 'reload');
@@ -120,7 +126,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_notify_config_change AFTER UPDATE OR INSERT ON system_config
 FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_config_change();
 
--- 6. SYSTEM STATUS (Health Check)
+-- 6. SYSTEM STATUS
 CREATE TABLE IF NOT EXISTS system_status (
     service_name VARCHAR(100) PRIMARY KEY,
     status system_service_status DEFAULT 'OFFLINE',
@@ -135,50 +141,19 @@ TRUNCATE devices, sensor_settings, metrics RESTART IDENTITY CASCADE;
 INSERT INTO system_config (raw_retention_days, agg_retention_days, polling_interval_ms, deadband_threshold)
 VALUES (90, 1825, 5000, 0.001);
 
--- 1. Добавляем контроллеры (Девайсы) на один IP симулятора, но с разными Slave ID
-INSERT INTO devices (name, ip_address, port, slave_id, is_active) VALUES
-('Pump Station Alpha', 'sim', 5020, 1, true),
-('Chiller Unit A',     'sim', 5020, 2, true),
-('HVAC Main',          'sim', 5020, 3, true);
+-- Device: ADAM-6017 (Advantech) — 8-channel analog input module
+-- Simulator: Slave ID 1, port 5020
+INSERT INTO devices (name, ip_address, port, slave_id, is_active)
+VALUES ('ADAM-6017', 'sim', 5020, 1, true);
 
--- 2. Датчики для "Pump Station Alpha"
-INSERT INTO sensor_settings (device_id, port_number, name, slug, data_type, unit, input_min, input_max, output_min, output_max, ui_config)
-SELECT id, 1, 'Входное давление', 'pump_press_in', 'ANALOG'::sensor_data_type, 'Bar', 0, 65535, 0, 10, 
-    '{"color": "#38bdf8", "mainPagePosition": 1, "minCritical": 0.5, "minWarning": 1.5, "maxWarning": 8.5, "maxCritical": 9.5}'::jsonb
-FROM devices WHERE name = 'Pump Station Alpha' UNION ALL
-SELECT id, 2, 'Выходное давление', 'pump_press_out', 'ANALOG'::sensor_data_type, 'Bar', 0, 65535, 0, 16, 
-    '{"color": "#0ea5e9", "mainPagePosition": 2, "maxWarning": 14.0, "maxCritical": 15.5}'::jsonb
-FROM devices WHERE name = 'Pump Station Alpha' UNION ALL
-SELECT id, 3, 'Температура насоса', 'pump_temp', 'ANALOG'::sensor_data_type, '°C', 0, 65535, -20, 150, 
-    '{"color": "#f97316", "mainPagePosition": 3, "maxWarning": 85.0, "maxCritical": 110.0}'::jsonb
-FROM devices WHERE name = 'Pump Station Alpha' UNION ALL
-SELECT id, 0, 'Статус Насоса', 'pump_status', 'DIGITAL'::sensor_data_type, 'ON/OFF', 0, 1, 0, 1, 
-    '{"color": "#10b981", "mainPagePosition": 4}'::jsonb
-FROM devices WHERE name = 'Pump Station Alpha';
-
--- 3. Датчики для "Chiller Unit A"
-INSERT INTO sensor_settings (device_id, port_number, name, slug, data_type, unit, input_min, input_max, output_min, output_max, ui_config)
-SELECT id, 3, 'Температура хладагента', 'chil_temp_in', 'ANALOG'::sensor_data_type, '°C', 0, 65535, -50, 50, 
-    '{"color": "#6366f1", "mainPagePosition": 1, "minCritical": -45.0, "maxCritical": 45.0}'::jsonb
-FROM devices WHERE name = 'Chiller Unit A' UNION ALL
-SELECT id, 1, 'Давление (High)', 'chil_press_hi', 'ANALOG'::sensor_data_type, 'Bar', 0, 65535, 0, 30, 
-    '{"color": "#ef4444", "mainPagePosition": 2, "maxCritical": 28.0}'::jsonb
-FROM devices WHERE name = 'Chiller Unit A' UNION ALL
-SELECT id, 0, 'Компрессор', 'chil_comp_status', 'DIGITAL'::sensor_data_type, 'ON/OFF', 0, 1, 0, 1, 
-    '{"color": "#10b981", "mainPagePosition": 3}'::jsonb
-FROM devices WHERE name = 'Chiller Unit A';
-
--- 4. Датчики для "HVAC Main"
-INSERT INTO sensor_settings (device_id, port_number, name, slug, data_type, unit, input_min, input_max, output_min, output_max, ui_config)
-SELECT id, 3, 'Уровень CO2', 'hvac_co2', 'ANALOG'::sensor_data_type, 'ppm', 0, 65535, 400, 2000, 
-    '{"color": "#a855f7", "mainPagePosition": 1, "maxWarning": 800.0, "maxCritical": 1200.0}'::jsonb
-FROM devices WHERE name = 'HVAC Main' UNION ALL
-SELECT id, 1, 'Температура притока', 'hvac_temp_sup', 'ANALOG'::sensor_data_type, '°C', 0, 65535, -40, 60, 
-    '{"color": "#fbbf24", "mainPagePosition": 2}'::jsonb
-FROM devices WHERE name = 'HVAC Main' UNION ALL
-SELECT id, 4, 'Загрязнение фильтра', 'hvac_filter_err', 'DIGITAL'::sensor_data_type, 'OK/ERR', 0, 1, 0, 1, 
-    '{"color": "#f43f5e", "mainPagePosition": 3}'::jsonb
-FROM devices WHERE name = 'HVAC Main';
-
-
-
+-- Sensors for ADAM-6017
+-- All use Input Registers (FC04), 16-bit (register_count=1)
+-- Simulator writes to IR addresses 0-3; DI address 0 for alarm
+INSERT INTO sensor_settings
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, unit, input_min, input_max, output_min, output_max)
+VALUES
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 0, 'Температура',     'adam_temp',     'ANALOG'::sensor_data_type,  0, 'INPUT_REGISTER'::modbus_register_type,  1, '°C',  0, 65535, -50, 150),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 1, 'Входное давление','adam_press_in', 'ANALOG'::sensor_data_type,  1, 'INPUT_REGISTER'::modbus_register_type,  1, 'Bar', 0, 65535,   0,  10),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG'::sensor_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG'::sensor_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::sensor_data_type, 0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1);

@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Dapper;
 using IIoT.Shared.Models;
 using Npgsql;
@@ -33,15 +34,26 @@ public class DapperContext
         try
         {
             var builder = new NpgsqlDataSourceBuilder(_connectionString);
+            
+            // Настройка нативного маппинга энумов Postgres <-> C#
+            // Это решает проблему Error parsing column (String -> Enum)
+            var translator = new UpperSnakeCaseNameTranslator();
+            builder.MapEnum<SensorDataType>("sensor_data_type", translator);
+            builder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
+            builder.MapEnum<ServiceStatus>("system_service_status", translator);
+
             DataSource = builder.Build();
 
-            // Регистрация глобальных хендлеров Dapper
+            // Регистрация хендлеров Dapper для сложных типов (JSON)
             SqlMapper.AddTypeHandler(typeof(SensorUiConfig), new JsonbTypeHandler());
+            
+            // Хендлеры для энумов, чтобы Dapper не отправлял их как int
             SqlMapper.AddTypeHandler(typeof(SensorDataType), new EnumTypeHandler<SensorDataType>());
+            SqlMapper.AddTypeHandler(typeof(ModbusRegisterType), new EnumTypeHandler<ModbusRegisterType>());
             SqlMapper.AddTypeHandler(typeof(ServiceStatus), new EnumTypeHandler<ServiceStatus>());
 
             _logger.Information(
-                "DapperContext initialized for {Host}",
+                "DapperContext initialized with native Enum mapping for {Host}",
                 new NpgsqlConnectionStringBuilder(_connectionString).Host
             );
         }
@@ -56,23 +68,14 @@ public class DapperContext
 }
 
 /// <summary>
-/// Преобразователь для работы с перечислениями (Enum).
+/// Транслятор имен для Npgsql: PascalCase (C#) to and from UPPER_SNAKE_CASE (Postgres).
 /// </summary>
-public class EnumTypeHandler<T> : SqlMapper.ITypeHandler
-    where T : struct, Enum
+public class UpperSnakeCaseNameTranslator : INpgsqlNameTranslator
 {
-    public void SetValue(IDbDataParameter parameter, object? value)
-    {
-        parameter.Value = value?.ToString();
-    }
+    public string TranslateMemberName(string clrName) =>
+        Regex.Replace(clrName, "(?<!^)([A-Z])", "_$1").ToUpper();
 
-    public object Parse(Type destinationType, object value)
-    {
-        if (value is null || value is DBNull)
-            return default(T);
-        var valueString = value.ToString();
-        return Enum.TryParse<T>(valueString, true, out var result) ? result : default(T);
-    }
+    public string TranslateTypeName(string clrName) => clrName;
 }
 
 /// <summary>
@@ -125,5 +128,25 @@ public class JsonbTypeHandler : SqlMapper.ITypeHandler
             );
             return null;
         }
+    }
+}
+
+/// <summary>
+/// Хендлер для маппинга перечислений (Enum) в строки (SNAKE_CASE) для PostgreSQL.
+/// </summary>
+public class EnumTypeHandler<T> : SqlMapper.TypeHandler<T> where T : struct, Enum
+{
+    public override void SetValue(IDbDataParameter parameter, T value)
+    {
+        // Преобразуем PascalCase -> SNAKE_CASE_UPPER для соответствия Postgres ENUM
+        var snakeCase = Regex.Replace(value.ToString(), "(?<!^)([A-Z])", "_$1").ToUpper();
+        parameter.Value = snakeCase;
+        parameter.DbType = DbType.String;
+    }
+
+    public override T Parse(object value)
+    {
+        if (value == null || value is DBNull) return default;
+        return Enum.Parse<T>(value.ToString()!.Replace("_", ""), true);
     }
 }

@@ -1,120 +1,102 @@
 import asyncio
 import math
 import random
+import struct
 import logging
-from datetime import datetime
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
 
-# Настройка логирования
 logging.basicConfig()
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
-def setup_context():
-    """
-    Настройка контекста сервера.
-    Инициализируем 100 регистров для каждого типа данных, чтобы избежать выхода за границы.
-    """
+
+def float_to_regs(value: float) -> list[int]:
+    """IEEE 754 float → [high_word, low_word], big-endian word order (Modbus standard)."""
+    b = struct.pack(">f", value)
+    return [(b[0] << 8) | b[1], (b[2] << 8) | b[3]]
+
+
+def setup_context() -> ModbusServerContext:
     slaves = {
+        # Slave 1: ADAM-6017 (Advantech)
+        #   Input Registers (FC04) addr 0-3: AI0..AI3, 16-bit 0-65535
+        #   Discrete Inputs  (FC02) addr 0:  DI0, alarm
         0x01: ModbusSlaveContext(
-            di=ModbusSequentialDataBlock(0, [0]*100), # Discrete Inputs (0-99)
-            ir=ModbusSequentialDataBlock(0, [0]*100)  # Input Registers (0-99)
+            ir=ModbusSequentialDataBlock(0, [0] * 10),
+            di=ModbusSequentialDataBlock(0, [0] * 10),
         ),
+        # Slave 2: Siemens S7-1200
+        #   Holding Registers (FC03) 32-bit float, high-word first:
+        #     addr 100-101: Motor RPM
+        #     addr 102-103: Temperature setpoint
+        #     addr 104-105: Power kW
         0x02: ModbusSlaveContext(
-            di=ModbusSequentialDataBlock(0, [0]*100), 
-            ir=ModbusSequentialDataBlock(0, [0]*100)
+            hr=ModbusSequentialDataBlock(0, [0] * 120),
         ),
+        # Slave 3: Schneider Modicon M221
+        #   Holding Registers (FC03) addr 0: flow rate (16-bit)
+        #   Coils             (FC01) addr 0: pump relay output
+        #   Discrete Inputs   (FC02) addr 0: start button input
         0x03: ModbusSlaveContext(
-            di=ModbusSequentialDataBlock(0, [0]*100), 
-            ir=ModbusSequentialDataBlock(0, [0]*100)
-        )
+            hr=ModbusSequentialDataBlock(0, [0] * 10),
+            co=ModbusSequentialDataBlock(0, [0] * 10),
+            di=ModbusSequentialDataBlock(0, [0] * 10),
+        ),
     }
     return ModbusServerContext(slaves=slaves, single=False)
 
-async def update_values_loop(context):
-    """
-    Цикл генерации данных, синхронизированный с iiot_init.sql.
-    """
-    counter = 0.0
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Цикл генерации данных запущен.")
+
+async def update_values_loop(context: ModbusServerContext) -> None:
+    t = 0.0
+    log.info("Value generator started.")
 
     while True:
         try:
-            slave1 = context[0x01]
-            slave2 = context[0x02]
-            slave3 = context[0x03]
+            # --- Slave 1: ADAM-6017 ---
+            # AI0: Temperature   → -50..150°C  (scaler in DB: in 0-65535, out -50..150)
+            # AI1: Pressure in   → 0..10 Bar
+            # AI2: Humidity      → 0..100%
+            # AI3: Current 4-20mA → DB in 0-65535, out 4..20
+            # DI0: Alarm (редкий импульс)
+            s1 = context[0x01]
+            s1.setValues(4, 0, [
+                int((math.sin(t * 0.3) + 1) * 0.5 * 65535),           # temp
+                int((math.sin(t * 0.5 + 1.0) + 1) * 0.5 * 65535),     # pressure
+                int((math.cos(t * 0.2) + 1) * 0.5 * 65535),           # humidity
+                int(13107 + math.sin(t * 0.4) * 13107),                # 4-20mA
+            ])
+            s1.setValues(2, 0, [1 if random.random() > 0.97 else 0])   # alarm
 
-            # --- SLAVE 1: Pump Station Alpha ---
-            # Port 1 (Analog): In Pressure
-            p_in = int((math.sin(counter) + 1) * 32767)
-            # Port 2 (Analog): Out Pressure
-            p_out = int((math.sin(counter + 1.5) + 1) * 32767 * 0.8) + 13000
-            # Port 3 (Analog): Pump Temp
-            p_temp = int((math.cos(counter * 0.3) + 1) * 25000) + 5000
-            # Port 0 (Digital): Pump Status
-            p_stat = 1 if (int(counter) % 10 < 7) else 0 # 70% времени работает
+            # --- Slave 2: Siemens S7-1200 (32-bit float) ---
+            s2 = context[0x02]
+            s2.setValues(3, 100, float_to_regs(1000.0 + math.sin(t * 0.2) * 450.0))   # RPM 550-1450
+            s2.setValues(3, 102, float_to_regs(65.0 + math.sin(t * 0.1) * 15.0))      # °C  50-80
+            s2.setValues(3, 104, float_to_regs(15.0 + math.cos(t * 0.3) * 8.0))       # kW  7-23
 
-            slave1.setValues(4, 1, [p_in])
-            slave1.setValues(4, 2, [p_out])
-            slave1.setValues(4, 3, [p_temp])
-            slave1.setValues(2, 0, [p_stat])
+            # --- Slave 3: Schneider M221 ---
+            s3 = context[0x03]
+            s3.setValues(3, 0, [int(20000 + math.sin(t * 0.6) * 15000)])   # flow 0-65535
+            s3.setValues(1, 0, [1 if (int(t) % 12 < 9) else 0])            # pump relay (75% on)
+            s3.setValues(2, 0, [1 if random.random() > 0.95 else 0])        # start button
 
-            # --- SLAVE 2: Chiller Unit A ---
-            # Port 3 (Analog): Refrigerant Temp
-            c_temp = int((math.sin(counter * 0.5) + 1) * 15000)
-            # Port 1 (Analog): Pressure High
-            c_press = int(45000 + random.randint(-2000, 2000))
-            # Port 0 (Digital): Compressor Status
-            c_stat = 1 if p_stat == 1 else 0 # Синхронно с насосом
-
-            slave2.setValues(4, 3, [c_temp])
-            slave2.setValues(4, 1, [c_press])
-            slave2.setValues(2, 0, [c_stat])
-
-            # --- SLAVE 3: HVAC Main ---
-            # Port 3 (Analog): CO2 Level
-            h_co2 = int((counter % 20) / 20 * 65535)
-            # Port 1 (Analog): Supply Temp
-            h_temp = int(28000 + math.sin(counter * 0.2) * 4000)
-            # Port 0 (Digital): Filter Error
-            h_filt = 1 if (random.random() > 0.98) else 0 # Редкая ошибка
-
-            slave3.setValues(4, 3, [h_co2])
-            slave3.setValues(4, 1, [h_temp])
-            slave3.setValues(2, 0, [h_filt])
-
-            if int(counter * 10) % 100 == 0:
-                log.info(f"Update: PUMP_STAT:{p_stat} | CHILL_P:{c_press} | HVAC_CO2:{h_co2}")
-
-            counter += 0.5
+            t += 0.5
             await asyncio.sleep(1.0)
 
         except Exception as e:
-            log.error(f"Ошибка эмуляции: {e}")
+            log.error(f"Generator error: {e}")
             await asyncio.sleep(2)
 
-async def run_server():
-    """
-    Запуск асинхронного Modbus TCP сервера.
-    """
+
+async def run_server() -> None:
     context = setup_context()
     asyncio.create_task(update_values_loop(context))
-    
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Слушаю Modbus на 0.0.0.0:5020...")
-    
-    await StartAsyncTcpServer(
-        context=context, 
-        address=("0.0.0.0", 5020)
-    )
+    log.info("Modbus TCP simulator listening on 0.0.0.0:5020")
+    await StartAsyncTcpServer(context=context, address=("0.0.0.0", 5020))
+
 
 if __name__ == "__main__":
     try:
-        print("Запуск симулятора IIoT (v3.5 Sync)...")
         asyncio.run(run_server())
     except KeyboardInterrupt:
-        print("Симулятор остановлен.")
-    except Exception as e:
-        print(f"Критическая ошибка: {e}")
-        import traceback
-        traceback.print_exc()
+        log.info("Simulator stopped.")

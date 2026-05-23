@@ -77,7 +77,8 @@ public class ModbusWorker(
     private async Task RunConfigListenerLoop(CancellationToken ct)
     {
         var connectionString = configuration.GetConnectionString("ADAMDB");
-        if (string.IsNullOrEmpty(connectionString)) return;
+        if (string.IsNullOrEmpty(connectionString))
+            return;
 
         while (!ct.IsCancellationRequested)
         {
@@ -89,7 +90,10 @@ public class ModbusWorker(
                 // Подписка на уведомление
                 conn.Notification += async (o, e) =>
                 {
-                    logger.LogInformation("Real-time configuration change detected (Channel: {Channel})", e.Channel);
+                    logger.LogInformation(
+                        "Real-time configuration change detected (Channel: {Channel})",
+                        e.Channel
+                    );
                     await ReloadConfigurationAsync();
                 };
 
@@ -106,10 +110,16 @@ public class ModbusWorker(
                     await conn.WaitAsync(ct);
                 }
             }
-            catch (OperationCanceledException) { break; }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
             catch (Exception ex)
             {
-                logger.LogWarning("Config listener connection lost. Retrying in 5s... Error: {Msg}", ex.Message);
+                logger.LogWarning(
+                    "Config listener connection lost. Retrying in 5s... Error: {Msg}",
+                    ex.Message
+                );
                 await Task.Delay(5000, ct);
             }
         }
@@ -253,7 +263,7 @@ public class ModbusWorker(
     }
 
     /// <summary>
-    /// Читает данные с одного конкретного устройства (Аналоговые + Дискретные входы).
+    /// Читает данные с одного конкретного устройства по всем типам регистров.
     /// </summary>
     private async Task<(bool Success, IEnumerable<Metric> Metrics)> ReadDeviceAsync(
         Device device,
@@ -267,37 +277,44 @@ public class ModbusWorker(
             if (master == null)
                 return (false, []);
 
-            // Чтение регистров
-            var analogRaw = (await modbusDriver.ReadAnalogAsync(master, (byte)device.SlaveId)).ToList();
-            var digitalRaw = (await modbusDriver.ReadDigitalAsync(master, (byte)device.SlaveId)).ToList();
-
             if (!_sensorCache.TryGetValue(device.Id, out var sensors))
                 return (true, []);
 
-            // Логируем только те порты, которые есть в конфиге (убираем шум)
-            foreach (var a in analogRaw)
-            {
-                if (sensors.Any(s => s.PortNumber == a.Port && s.DataType == SensorDataType.ANALOG))
-                {
-                    logger.LogTrace("Device {Name}: Port {Port} raw ANALOG = {Val}", device.Name, a.Port, a.Value);
-                }
-            }
-            foreach (var d in digitalRaw)
-            {
-                if (sensors.Any(s => s.PortNumber == d.Port && s.DataType == SensorDataType.DIGITAL))
-                {
-                    logger.LogTrace("Device {Name}: Port {Port} raw DIGITAL = {Val}", device.Name, d.Port, d.Value);
-                }
-            }
+            var allMetrics = new List<Metric>();
 
-            // Преобразование сырых данных в метрики
-            var rawMetrics = new List<Metric>();
-            rawMetrics.AddRange(processService.ProcessAnalog(analogRaw, sensors));
-            rawMetrics.AddRange(processService.ProcessDigital(digitalRaw, sensors));
+            // Опрашиваем каждую группу регистров
+            foreach (var registerType in Enum.GetValues<ModbusRegisterType>())
+            {
+                var sensorsOfType = sensors.Where(s => s.RegisterType == registerType).ToList();
+                if (sensorsOfType.Count == 0)
+                    continue;
+
+                try
+                {
+                    var rawData = await modbusDriver.ReadRegistersAsync(
+                        master,
+                        (byte)device.SlaveId,
+                        sensorsOfType,
+                        registerType,
+                        ct
+                    );
+
+                    allMetrics.AddRange(processService.Process(rawData, sensors));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(
+                        "Device {Name}: Failed to read {Type}: {Msg}",
+                        device.Name,
+                        registerType,
+                        ex.Message
+                    );
+                }
+            }
 
             // Фильтрация (Deadband)
             var filteredMetrics = new List<Metric>();
-            foreach (var m in rawMetrics)
+            foreach (var m in allMetrics)
             {
                 var setting = sensors.FirstOrDefault(s => s.SensorId == m.SensorId);
                 if (setting != null && ShouldSaveMetric(m, setting))
@@ -399,7 +416,7 @@ public class ModbusWorker(
             return true;
         }
 
-        if (s.DataType == SensorDataType.ANALOG)
+        if (s.DataType == SensorDataType.Analog)
         {
             // Проверка изменения на % от диапазона датчика
             var delta = Math.Abs(m.Value - last.Value);
@@ -412,13 +429,18 @@ public class ModbusWorker(
 
             if (!shouldSave)
             {
-                logger.LogTrace("Sensor {Id}: Delta {Delta} <= Threshold {Thr}, skipping.", m.SensorId, delta, threshold);
+                logger.LogTrace(
+                    "Sensor {Id}: Delta {Delta} <= Threshold {Thr}, skipping.",
+                    m.SensorId,
+                    delta,
+                    threshold
+                );
             }
 
             return shouldSave;
         }
 
-        if (s.DataType == SensorDataType.DIGITAL)
+        if (s.DataType == SensorDataType.Digital)
         {
             // Для дискретных сохраняем только изменение состояния (0->1 или 1->0)
             var changed = Math.Abs(m.Value - last.Value) > 0.5;
@@ -495,22 +517,22 @@ public class ModbusWorker(
         using var scope = scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IDataRepository>();
 
-        var status = ServiceStatus.ONLINE;
+        var status = ServiceStatus.Online;
         var errorMsg = string.Empty;
 
         if (!string.IsNullOrEmpty(_lastGlobalError))
         {
-            status = ServiceStatus.CRITICAL_ERROR;
+            status = ServiceStatus.CriticalError;
             errorMsg = _lastGlobalError;
         }
         else if (_devices.Count > 0 && _failedDevicesCount == _devices.Count)
         {
-            status = ServiceStatus.CRITICAL_ERROR;
+            status = ServiceStatus.CriticalError;
             errorMsg = "ALL devices unreachable";
         }
         else if (_failedDevicesCount > 0)
         {
-            status = ServiceStatus.DEGRADED;
+            status = ServiceStatus.Degraded;
             errorMsg = $"Unreachable: {_failedDevicesCount}/{_devices.Count}";
         }
 
@@ -548,10 +570,19 @@ public class ModbusWorker(
         {
             if (_sensorCache.TryGetValue(device.Id, out var sensors))
             {
-                logger.LogInformation("Loaded {Count} sensors for device {Name}", sensors.Count, device.Name);
+                logger.LogInformation(
+                    "Loaded {Count} sensors for device {Name}",
+                    sensors.Count,
+                    device.Name
+                );
                 foreach (var s in sensors)
                 {
-                    logger.LogInformation(" - Sensor {Id}: Port {Port} ({Type})", s.SensorId, s.PortNumber, s.DataType);
+                    logger.LogInformation(
+                        " - Sensor {Id}: Port {Port} ({Type})",
+                        s.SensorId,
+                        s.PortNumber,
+                        s.DataType
+                    );
                 }
             }
         }

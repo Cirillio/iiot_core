@@ -11,17 +11,30 @@
             "id": "5fa74d3838fc84e8",
             "type": "leaf",
             "state": {
+              "type": "image",
+              "state": {
+                "file": "Docs/DB_ERD.png"
+              },
+              "icon": "lucide-image",
+              "title": "DB_ERD"
+            }
+          },
+          {
+            "id": "e815f6eea2cec42a",
+            "type": "leaf",
+            "state": {
               "type": "markdown",
               "state": {
-                "file": "Docs/webapi-task.md",
+                "file": "Docs/ARCHITECTURE.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "webapi-task"
+              "title": "ARCHITECTURE"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -44,7 +57,7 @@
                 "autoReveal": false
               },
               "icon": "lucide-folder-closed",
-              "title": "Files"
+              "title": "Файловый менеджер"
             }
           },
           {
@@ -78,7 +91,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 358.5
   },
   "right": {
     "id": "cbc32de094157cdb",
@@ -174,62 +187,62 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "switcher:Open quick switcher": false,
-      "graph:Open graph view": false,
-      "canvas:Create new canvas": false,
-      "daily-notes:Open today's daily note": false,
-      "templates:Insert template": false,
-      "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
     }
   },
-  "active": "5fa74d3838fc84e8",
+  "active": "e815f6eea2cec42a",
   "lastOpenFiles": [
-    "Docs/Статус системы 17.02.2026.md",
-    "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
-    "Docs/Модернизация Modbus Systemal features (Реализация).md",
+    "Docs/🏗 Архитектура БД IIoT Database Core.md",
+    "Docs/ARCHITECTURE.md",
+    "Docs/ARCHITECTURE.md.tmp.285774.617d00044278",
+    "iiot_admin/app/components/ScrollableWrapper.vue",
+    "iiot_admin/app/App.vue",
+    "iiot_admin/app/components/app/Toolbar.vue",
+    "iiot_admin/app/components/app/NotificationsPopover.vue",
+    "iiot_admin/app/components/app/Header.vue",
+    "iiot_admin/app/components/app/Footer.vue",
+    "iiot_admin/app/components/app/Aside.vue",
+    "iiot_admin/app/components/custom/Tooltip.vue",
+    "iiot_admin/app/components/logs/Toolbar.vue",
     "Docs/АРМ Инженера IIoT (Nuxt 4).md",
-    "IIoT.Collector/buffer.db-shm",
-    "IIoT.Collector/buffer.db-wal",
-    "collectorLatestWorking/buffer.db-shm",
-    "collectorLatestWorking/buffer.db-wal",
-    "collectorLatestWorking/buffer.db-journal",
-    "collectorLatestWorking/buffer.db",
-    "collectorLatestWorking/obj/Debug/net10.0/modbusClient.csproj.FileListAbsolute.txt",
-    "collectorLatestWorking/bin/Debug/net10.0/ModbusClient.pdb",
-    "collectorLatestWorking/obj/Debug/net10.0/ref/ModbusClient.dll",
-    "collectorLatestWorking/bin/Debug/net10.0/ModbusClient.dll",
-    "hub_listener_test/dist/vite.svg",
-    "hub_listener_test/node_modules/requires-port/README.md",
-    "hub_listener_test/node_modules/querystringify/README.md",
-    "hub_listener_test/node_modules/webidl-conversions/README.md",
-    "hub_listener_test/node_modules/webidl-conversions/LICENSE.md",
-    "hub_listener_test/node_modules/url-parse/README.md",
-    "hub_listener_test/node_modules/universalify/README.md",
-    "hub_listener_test/node_modules/psl/browserstack-logo.svg",
-    "hub_listener_test/node_modules/psl/SECURITY.md",
-    "hub_listener_test/node_modules/psl/README.md",
-    "hub_listener_test/node_modules/whatwg-url/README.md",
-    "hub_listener_test/node_modules/tough-cookie/README.md",
-    "hub_listener_test/node_modules/set-cookie-parser/README.md",
-    "hub_listener_test/node_modules/event-target-shim/README.md",
-    "hub_listener_test/node_modules/ws/README.md",
-    "hub_listener_test/node_modules/node-fetch/README.md",
-    "hub_listener_test/node_modules/node-fetch/LICENSE.md",
-    "hub_listener_test/node_modules/fetch-cookie/README.md",
-    "hub_listener_test/node_modules/fetch-cookie/CHANGELOG.md",
-    "hub_listener_test/node_modules/eventsource/README.md",
-    "hub_listener_test/node_modules/eventsource/HISTORY.md",
-    "hub_listener_test/node_modules/eventsource/CONTRIBUTING.md",
-    "hub_listener_test/node_modules/abort-controller/README.md",
-    "hub_listener_test/node_modules/@microsoft/signalr/README.md",
-    "hub_listener_test/src/assets/react.svg",
-    "hub_listener_test/public/vite.svg",
-    "hub_listener_test/node_modules/renderkid/docs/images/usage.png",
-    "hub_listener_test/node_modules/renderkid/docs/images/display.png",
-    "hub_listener_test/node_modules/renderkid/docs/images/bullets-1.png",
-    "hub_listener_test/node_modules/detect-port-alt/logo.png",
-    "hub_listener_test/node_modules/serve-index/public/icons/page_world.png",
-    "hub_listener_test/node_modules/serve-index/public/icons/page_word.png"
+    "Docs/Модернизация Modbus Systemal features (Реализация).md",
+    "Docs/Распределенная IIoT-система Мониторинга (ADAM-6017).md",
+    "Docs/MODBUS_UNIVERSAL_SUPPORT.md",
+    "Docs/Статус системы 17.02.2026.md",
+    "Docs/TODO.md",
+    "Docs/fixing-cloudflare.md",
+    "Docs/webapi-task.md",
+    "Docs/usefuls.md",
+    "Docs/DB_ERD.png",
+    "iiot_monitoring/iiot-monitoring_2026-04-24.md",
+    "iiot_monitoring/UI_SYSTEM_SCREEN_SPEC.md",
+    "ОФОРМЛЕНИЕ ВКР.md",
+    "iiot_monitoring/MONITORING_REFACTOR.md",
+    "iiot_monitoring/TODO.md",
+    "iiot_monitoring/build/app/intermediates/packaged_res/debug/packageDebugResources/mipmap-xxxhdpi-v4/ic_launcher.png",
+    "iiot_monitoring/build/app/intermediates/packaged_res/debug/packageDebugResources/mipmap-xxhdpi-v4/ic_launcher.png",
+    "iiot_monitoring/build/app/intermediates/packaged_res/debug/packageDebugResources/mipmap-xhdpi-v4/ic_launcher.png",
+    "iiot_monitoring/build/app/intermediates/packaged_res/debug/packageDebugResources/mipmap-mdpi-v4/ic_launcher.png",
+    "iiot_monitoring/build/app/intermediates/packaged_res/debug/packageDebugResources/mipmap-hdpi-v4/ic_launcher.png",
+    "iiot_monitoring/GEMINI.md",
+    "IIoT.WebApi/API_DEVELOPMENT_PLAN.md",
+    "mobile_mockup_react/dist/vite.svg",
+    "mobile_mockup_react/node_modules/@microsoft/signalr/node_modules/node-fetch/README.md",
+    "mobile_mockup_react/node_modules/@microsoft/signalr/node_modules/node-fetch/LICENSE.md",
+    "mobile_mockup_react/node_modules/@microsoft/signalr/node_modules/eventsource/README.md",
+    "mobile_mockup_react/node_modules/@microsoft/signalr/node_modules/eventsource/HISTORY.md",
+    "mobile_mockup_react/node_modules/@microsoft/signalr/node_modules/eventsource/CONTRIBUTING.md",
+    "mobile_mockup_react/node_modules/requires-port/README.md",
+    "mobile_mockup_react/node_modules/querystringify/README.md",
+    "mobile_mockup_react/node_modules/d3-path/README.md",
+    "mobile_mockup_react/node_modules/psl/browserstack-logo.svg",
+    "mobile_mockup_react/src/assets/react.svg",
+    "mobile_mockup_react/public/vite.svg"
   ]
 }

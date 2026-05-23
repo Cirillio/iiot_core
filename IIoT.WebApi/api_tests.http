@@ -1,0 +1,277 @@
+@base = http://localhost:8080/api
+@createdDeviceId = 2
+@createdSensorId = 11
+
+### ================================================================
+### SYSTEM
+### ================================================================
+
+### [1] GET system config
+GET {{base}}/system/config
+Accept: application/json
+
+###
+
+### [2] GET system status
+GET {{base}}/system/status
+Accept: application/json
+
+###
+
+### [3] PUT system config
+PUT {{base}}/system/config
+Content-Type: application/json
+
+{
+  "id": 1,
+  "rawRetentionDays": 90,
+  "aggRetentionDays": 1825,
+  "pollingIntervalMs": 7000,
+  "configReloadIntervalSec": 60,
+  "healthCheckIntervalSec": 30,
+  "deadbandThreshold": 0.001,
+  "dataHeartbeatSec": 600,
+  "uiUpdateIntervalMs": 2000,
+  "updatedAt": "2026-05-19T08:40:21.71911Z"
+}
+
+###
+
+### ================================================================
+### DEVICES — READ
+### ================================================================
+
+### [4] GET all devices (без лимита)
+GET {{base}}/devices
+Accept: application/json
+
+###
+
+### [5] GET all devices с лимитом датчиков
+GET {{base}}/devices?limit=3
+Accept: application/json
+
+###
+
+### [6] GET device by ID (существующий)
+GET {{base}}/devices/1
+Accept: application/json
+
+###
+
+### [7] GET device by ID (несуществующий — ожидаем 404)
+GET {{base}}/devices/99999
+Accept: application/json
+
+###
+
+### ================================================================
+### DEVICES — WRITE
+### ================================================================
+
+### [8] POST create device — OK
+# После выполнения: запиши возвращённый id в @createdDeviceId выше
+POST {{base}}/devices
+Content-Type: application/json
+
+{
+  "name": "TEST-DEVICE-01",
+  "ipAddress": "192.168.1.100",
+  "port": 502,
+  "slaveId": 1,
+  "isActive": false
+}
+
+###
+
+### [9] POST create device — невалидный IP (ожидаем 400)
+POST {{base}}/devices
+Content-Type: application/json
+
+{
+  "name": "BAD",
+  "ipAddress": "not-an-ip",
+  "port": 502,
+  "slaveId": 1,
+  "isActive": false
+}
+
+###
+
+### [10] PUT update device
+PUT {{base}}/devices/{{createdDeviceId}}
+Content-Type: application/json
+
+{
+  "name": "TEST-DEVICE-01-UPDATED!!!",
+  "ipAddress": "192.168.1.101",
+  "port": 502,
+  "slaveId": 2,
+  "isActive": true
+}
+
+###
+
+### [11] PUT update несуществующий device (ожидаем 404)
+PUT {{base}}/devices/99999
+Content-Type: application/json
+
+{
+  "name": "GHOST",
+  "ipAddress": "192.168.1.1",
+  "port": 502,
+  "slaveId": 1,
+  "isActive": false
+}
+
+###
+
+### ================================================================
+### SENSORS — READ
+### ================================================================
+
+### [12] GET all sensors
+GET {{base}}/sensors
+Accept: application/json
+
+###
+
+### [13] GET sensor by ID (существующий)
+GET {{base}}/sensors/1
+Accept: application/json
+
+###
+
+### [14] GET sensor by ID (несуществующий — ожидаем 404)
+GET {{base}}/sensors/99999
+Accept: application/json
+
+###
+
+### [15] GET sensors by deviceId
+GET {{base}}/sensors/device/1
+Accept: application/json
+
+###
+
+### ================================================================
+### SENSORS — WRITE
+### ================================================================
+
+### [16] POST create sensor — OK
+# DataType: Analog | Digital | Counter | Temperature | Pressure | Flow | Level | Voltage | Current | Custom
+# RegisterType: HoldingRegister | InputRegister | Coil | DiscreteInput
+# После выполнения: запиши возвращённый id в @createdSensorId выше
+POST {{base}}/sensors
+Content-Type: application/json
+
+{
+  "deviceId": 1,
+  "portNumber": 5,
+  "name": "TEST Sensor",
+  "slug": "test_sensor",
+  "dataType": "Analog",
+  "registerAddress": 0,
+  "registerType": "InputRegister",
+  "registerCount": 1,
+  "unit": "V",
+  "inputMin": 0.0,
+  "inputMax": 10.0,
+  "outputMin": 0.0,
+  "outputMax": 100.0,
+  "offsetVal": 0.0,
+  "formula": null,
+  "uiConfig": ""
+}
+
+###
+
+### [17] POST create sensor — невалидный DataType (ожидаем 400)
+POST {{base}}/sensors
+Content-Type: application/json
+
+{
+  "deviceId": 1,
+  "portNumber": 0,
+  "name": "BAD",
+  "slug": "bad-sensor",
+  "dataType": "INVALID_TYPE",
+  "registerAddress": 0,
+  "registerType": "InputRegister",
+  "registerCount": 1,
+  "unit": "V",
+  "inputMin": 0.0,
+  "inputMax": 10.0,
+  "outputMin": 0.0,
+  "outputMax": 100.0,
+  "offsetVal": 0.0,
+  "formula": null,
+  "uiConfig": ""
+}
+
+###
+
+### [18] PUT update sensor
+PUT {{base}}/sensors/{{createdSensorId}}
+Content-Type: application/json
+
+{
+  "portNumber": 6,
+  "name": "TEST Sensor UPDATED",
+  "slug": "test_sensor_upd",
+  "dataType": "Analog",
+  "registerAddress": 1,
+  "registerType": "HoldingRegister",
+  "registerCount": 1,
+  "unit": "mA",
+  "inputMin": 4.0,
+  "inputMax": 20.0,
+  "outputMin": 0.0,
+  "outputMax": 100.0,
+  "offsetVal": 0.0,
+  "formula": null,
+  "uiConfig": ""
+}
+
+###
+
+### ================================================================
+### METRICS
+### ================================================================
+
+### [19] GET metrics history — последние 24ч (сырые данные)
+GET {{base}}/metrics/history?sensorId=1&from=2026-05-18T00:00:00Z&to=2026-05-19T00:00:00Z
+Accept: application/json
+
+###
+
+### [20] GET metrics history — 72ч (должен переключиться на metrics_hourly)
+GET {{base}}/metrics/history?sensorId=1&from=2026-05-16T00:00:00Z&to=2026-05-19T00:00:00Z
+Accept: application/json
+
+###
+
+### [21] GET metrics history — невалидный диапазон (from >= to, ожидаем 400)
+GET {{base}}/metrics/history?sensorId=1&from=2026-05-19T00:00:00Z&to=2026-05-18T00:00:00Z
+Accept: application/json
+
+###
+
+### ================================================================
+### CLEANUP — запускать в конце
+### ================================================================
+
+### [22] DELETE sensor (созданный в [16])
+DELETE {{base}}/sensors/{{createdSensorId}}
+
+###
+
+### [23] DELETE device (созданный в [8])
+DELETE {{base}}/devices/{{createdDeviceId}}
+
+###
+
+### [24] DELETE несуществующий device (ожидаем 404)
+DELETE {{base}}/devices/99999
+
+###

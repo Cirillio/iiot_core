@@ -13,7 +13,7 @@ public record SystemStatus
     /// <summary>
     /// Текущее состояние сервиса (Enum).
     /// </summary>
-    public ServiceStatus Status { get; init; } = ServiceStatus.ONLINE;
+    public ServiceStatus Status { get; init; } = ServiceStatus.Online;
 
     /// <summary>
     /// Время непрерывной работы сервиса в секундах (Uptime).
