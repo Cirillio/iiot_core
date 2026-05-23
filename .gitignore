@@ -21,8 +21,21 @@ ehthumbs.db
 .idea/**/shelf
 
 # Obsidian (Personal workspace settings)
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
+.obsidian/
+
+# --- Non-core dirs (separate repos / drafts) ---
+iiot_admin/
+iiot_monitoring/
+mobile_mockup_react/
+Docs/
+Презентация/
+
+# --- Misc project files ---
+Untitled.md
+iiot.code-workspace
+diagram-export-*.png
+hub_listener_test/
+templs/
 
 # --- .NET (Core & Framework) ---
 [Bb]in/
