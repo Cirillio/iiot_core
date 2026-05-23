@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using IIoT.Shared.Models;
 using NModbus;
 
 namespace IIoT.Collector.Interfaces;
@@ -26,24 +27,23 @@ public interface IModbusService
     );
 
     /// <summary>
-    /// Читает значения аналоговых входов (Input Registers) с устройства.
-    /// Обычно используется функция Modbus 0x04.
+    /// Читает регистры для списка датчиков одного типа.
+    /// Группирует смежные адреса в один batch-запрос для эффективности.
+    /// Поддерживает многорегистровые датчики (32-bit).
     /// </summary>
     /// <param name="master">Активный Modbus Master.</param>
     /// <param name="slaveId">Unit ID устройства.</param>
+    /// <param name="sensors">Список настроек сенсоров одного типа.</param>
+    /// <param name="registerType">Тип регистра (Input, Holding, Discrete, Coil).</param>
+    /// <param name="ct">Токен отмены.</param>
     /// <returns>
-    /// Коллекция кортежей (Номер порта/регистра, Сырое значение 0-65535).
+    /// Коллекция кортежей (SensorId, Массив сырых значений).
     /// </returns>
-    Task<IEnumerable<(int Port, ushort Value)>> ReadAnalogAsync(IModbusMaster master, byte slaveId);
-
-    /// <summary>
-    /// Читает значения дискретных входов (Discrete Inputs) с устройства.
-    /// Обычно используется функция Modbus 0x02.
-    /// </summary>
-    /// <param name="master">Активный Modbus Master.</param>
-    /// <param name="slaveId">Unit ID устройства.</param>
-    /// <returns>
-    /// Коллекция кортежей (Номер порта/входа, Значение True/False).
-    /// </returns>
-    Task<IEnumerable<(int Port, bool Value)>> ReadDigitalAsync(IModbusMaster master, byte slaveId);
+    Task<IEnumerable<(int SensorId, ushort[] RawValues)>> ReadRegistersAsync(
+        IModbusMaster master,
+        byte slaveId,
+        IEnumerable<SensorSettings> sensors,
+        ModbusRegisterType registerType,
+        CancellationToken ct
+    );
 }

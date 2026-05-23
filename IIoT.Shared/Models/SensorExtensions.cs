@@ -39,13 +39,13 @@ namespace IIoT.Shared.Models
         public static double Calculate(double rawValue, SensorSettings settings)
         {
             // Для дискретных датчиков просто возвращаем 0 или 1
-            if (settings.DataType == SensorDataType.DIGITAL)
+            if (settings.DataType == SensorDataType.Digital)
             {
                 return rawValue > 0 ? 1.0 : 0.0;
             }
 
             // Для виртуальных датчиков здесь может быть вызов парсера формул (NCalc или аналоги)
-            if (settings.DataType == SensorDataType.VIRTUAL)
+            if (settings.DataType == SensorDataType.Virtual)
             {
                 // Пока заглушка, возвращаем как есть
                 return rawValue;

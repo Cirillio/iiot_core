@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Dapper;
 using IIoT.Collector.Infrastructure;
 using IIoT.Collector.Interfaces;
@@ -5,9 +6,11 @@ using IIoT.Collector.Repositories;
 using IIoT.Collector.Services;
 using IIoT.Collector.Workers;
 using IIoT.Shared.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Serilog;
 
 // Настройка и инициализация глобального логгера
@@ -17,13 +20,23 @@ try
 {
     Log.Information("Starting IIoT.Collector...");
 
-    // Настройка маппинга типов Dapper
-    SqlMapper.AddTypeHandler(new EnumStringHandler<SensorDataType>());
-    SqlMapper.AddTypeHandler(new EnumStringHandler<ServiceStatus>());
+    DefaultTypeMap.MatchNamesWithUnderscores = true;
     SqlMapper.AddTypeHandler(new JsonTypeHandler<SensorUiConfig>());
 
     // Создание билдера хоста (Generic Host)
     var builder = Host.CreateApplicationBuilder(args);
+
+    // NpgsqlDataSource с нативным маппингом enum-типов PostgreSQL
+    var connStr =
+        builder.Configuration.GetConnectionString("ADAMDB")
+        ?? throw new InvalidOperationException("Connection string 'ADAMDB' not found.");
+    var translator = new CollectorNameTranslator();
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connStr);
+    dataSourceBuilder.MapEnum<SensorDataType>("sensor_data_type", translator);
+    dataSourceBuilder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
+    dataSourceBuilder.MapEnum<ServiceStatus>("system_service_status", translator);
+    var dataSource = dataSourceBuilder.Build();
+    builder.Services.AddSingleton(dataSource);
 
     // 1. Подключаем Serilog к инфраструктуре логирования .NET
     builder.Logging.ClearProviders();

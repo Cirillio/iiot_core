@@ -1,7 +1,9 @@
+using System.Text.RegularExpressions;
 using Dapper;
 using IIoT.Shared.Models;
 using IIoT.WebApi.Core.Interfaces;
 using IIoT.WebApi.Data.TypeHandlers;
+using Serilog;
 
 namespace IIoT.WebApi.Data.Repositories;
 
@@ -11,6 +13,7 @@ namespace IIoT.WebApi.Data.Repositories;
 public class SystemRepository(DapperContext context) : ISystemRepository
 {
     private readonly DapperContext _context = context;
+    private readonly Serilog.ILogger _logger = Log.ForContext<SystemRepository>();
 
     /// <inheritdoc />
     public async Task<SystemConfig> GetConfigAsync()
@@ -50,9 +53,9 @@ public class SystemRepository(DapperContext context) : ISystemRepository
         {
             return await connection.QueryAsync<SystemStatus>(sql);
         }
-        catch
+        catch (Exception ex)
         {
-            // Возвращаем пустую коллекцию, если таблица еще не создана или пуста
+            _logger.Error(ex, "GetStatusAsync failed");
             return Enumerable.Empty<SystemStatus>();
         }
     }
@@ -77,7 +80,7 @@ public class SystemRepository(DapperContext context) : ISystemRepository
             new
             {
                 status.ServiceName,
-                Status = status.Status.ToString(),
+                Status = Regex.Replace(status.Status.ToString(), "(?<!^)([A-Z])", "_$1").ToUpper(),
                 status.UptimeSeconds,
                 status.LastError,
                 status.LastSync,

@@ -25,7 +25,7 @@ public class SystemHealthService(
                 await repository.UpdateSystemStatusAsync(new SystemStatus
                 {
                     ServiceName = "WebGateway",
-                    Status = ServiceStatus.ONLINE,
+                    Status = ServiceStatus.Online,
                     UptimeSeconds = (long)(DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()).TotalSeconds,
                     LastSync = DateTime.UtcNow,
                     LastError = ""

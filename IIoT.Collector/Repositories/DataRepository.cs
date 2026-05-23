@@ -1,8 +1,6 @@
-using System.Data;
 using Dapper;
 using IIoT.Collector.Interfaces;
 using IIoT.Shared.Models;
-using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
 using Serilog;
@@ -15,28 +13,15 @@ namespace IIoT.Collector.Repositories;
 /// </summary>
 public class DataRepository : IDataRepository
 {
-    private readonly string _connectionString;
+    private readonly NpgsqlDataSource _dataSource;
     private readonly ILogger _logger = Log.ForContext<DataRepository>();
 
-    /// <summary>
-    /// Инициализирует новый экземпляр репозитория.
-    /// </summary>
-    /// <param name="configuration">Конфигурация приложения для доступа к строке подключения 'ADAMDB'.</param>
-    /// <exception cref="ArgumentNullException">Если строка подключения не найдена.</exception>
-    public DataRepository(IConfiguration configuration)
+    public DataRepository(NpgsqlDataSource dataSource)
     {
-        _connectionString =
-            configuration.GetConnectionString("ADAMDB")
-            ?? throw new ArgumentNullException("Database connection string 'ADAMDB' is missing");
-
-        // Глобальная настройка Dapper: маппинг snake_case (в БД) в PascalCase (в C#)
-        DefaultTypeMap.MatchNamesWithUnderscores = true;
+        _dataSource = dataSource;
     }
 
-    /// <summary>
-    /// Создает новое подключение к PostgreSQL.
-    /// </summary>
-    private NpgsqlConnection CreateConnection() => new(_connectionString);
+    private ValueTask<NpgsqlConnection> CreateConnection() => _dataSource.OpenConnectionAsync();
 
     /// <inheritdoc />
     /// <remarks>
@@ -51,8 +36,7 @@ public class DataRepository : IDataRepository
 
         try
         {
-            using var conn = CreateConnection();
-            await conn.OpenAsync();
+            await using var conn = await CreateConnection();
 
             // COPY protocol - прямой поток бинарных данных в таблицу
             using var writer = await conn.BeginBinaryImportAsync(
@@ -105,13 +89,13 @@ public class DataRepository : IDataRepository
 
         try
         {
-            using var conn = CreateConnection();
+            await using var conn = await CreateConnection();
             await conn.ExecuteAsync(
                 sql,
                 new
                 {
                     status.ServiceName,
-                    Status = status.Status.ToString(), // Enum -> String для корректного каста в Postgres enum type
+                    Status = System.Text.RegularExpressions.Regex.Replace(status.Status.ToString(), "(?<!^)([A-Z])", "_$1").ToUpper(),
                     status.UptimeSeconds,
                     status.LastError,
                     status.LastSync,
@@ -135,7 +119,7 @@ public class DataRepository : IDataRepository
 
         try
         {
-            using var conn = CreateConnection();
+            await using var conn = await CreateConnection();
             return await conn.QueryAsync<Device>(sql);
         }
         catch (Exception ex)
@@ -156,7 +140,10 @@ public class DataRepository : IDataRepository
                 port_number, 
                 name, 
                 slug, 
-                data_type::text as DataType,
+                data_type,
+                register_address,
+                register_type,
+                register_count,
                 unit, 
                 input_min, input_max, 
                 output_min, output_max, 
@@ -169,7 +156,7 @@ public class DataRepository : IDataRepository
 
         try
         {
-            using var conn = CreateConnection();
+            await using var conn = await CreateConnection();
             var settings = await conn.QueryAsync<SensorSettings>(sql);
             return settings;
         }
@@ -201,7 +188,7 @@ public class DataRepository : IDataRepository
 
         try
         {
-            using var conn = CreateConnection();
+            await using var conn = await CreateConnection();
             var config = await conn.QueryFirstOrDefaultAsync<SystemConfig>(sql);
 
             // Если конфига нет в БД (таблица пуста), возвращаем дефолтный объект с настройками по умолчанию

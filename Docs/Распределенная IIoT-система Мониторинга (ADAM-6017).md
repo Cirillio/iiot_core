@@ -14,7 +14,7 @@
 
 ## 2. Инфраструктура (Docker Host)
 
-Развертывание через `docker-compose`.
+Развертывание через `docker compose`.
 
 ### Сервисы (Containers):
 

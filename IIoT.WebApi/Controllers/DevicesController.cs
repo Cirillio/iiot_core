@@ -26,7 +26,9 @@ public class DevicesController(
     /// <param name="limit">Ограничение количества датчиков на одно устройство (сортировка по mainPagePosition).</param>
     /// <returns>Список устройств с вложенными датчиками.</returns>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<DashboardDeviceDTO>>> GetDevices([FromQuery] int? limit)
+    public async Task<ActionResult<IEnumerable<DashboardDeviceDTO>>> GetDevices(
+        [FromQuery] int? limit
+    )
     {
         var devices = await _repository.GetDevicesWithSensorsAsync(limit);
         return Ok(devices);

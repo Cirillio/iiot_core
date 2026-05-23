@@ -15,7 +15,14 @@ public class SensorRepository(DapperContext context) : ISensorRepository
     /// <inheritdoc />
     public async Task<IEnumerable<SensorSettings>> GetAllAsync()
     {
-        const string sql = "SELECT * FROM sensor_settings ORDER BY sensor_id";
+        const string sql = @"
+            SELECT 
+                sensor_id, device_id, port_number, name, slug, 
+                data_type, register_address, register_type, register_count, 
+                unit, input_min, input_max, output_min, output_max, 
+                offset_val, formula, ui_config as UiConfigJson, updated_at
+            FROM sensor_settings 
+            ORDER BY sensor_id";
         using var connection = _context.CreateConnection();
         return await connection.QueryAsync<SensorSettings>(sql);
     }
@@ -23,7 +30,14 @@ public class SensorRepository(DapperContext context) : ISensorRepository
     /// <inheritdoc />
     public async Task<SensorSettings?> GetByIdAsync(int sensorId)
     {
-        const string sql = "SELECT * FROM sensor_settings WHERE sensor_id = @Id";
+        const string sql = @"
+            SELECT 
+                sensor_id, device_id, port_number, name, slug, 
+                data_type, register_address, register_type, register_count, 
+                unit, input_min, input_max, output_min, output_max, 
+                offset_val, formula, ui_config as UiConfigJson, updated_at
+            FROM sensor_settings 
+            WHERE sensor_id = @Id";
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<SensorSettings>(
             sql,
@@ -34,8 +48,15 @@ public class SensorRepository(DapperContext context) : ISensorRepository
     /// <inheritdoc />
     public async Task<IEnumerable<SensorSettings>> GetByDeviceIdAsync(int deviceId)
     {
-        const string sql =
-            "SELECT * FROM sensor_settings WHERE device_id = @DeviceId ORDER BY port_number";
+        const string sql = @"
+            SELECT 
+                sensor_id, device_id, port_number, name, slug, 
+                data_type, register_address, register_type, register_count, 
+                unit, input_min, input_max, output_min, output_max, 
+                offset_val, formula, ui_config as UiConfigJson, updated_at
+            FROM sensor_settings 
+            WHERE device_id = @DeviceId 
+            ORDER BY register_address, port_number";
         using var connection = _context.CreateConnection();
         return await connection.QueryAsync<SensorSettings>(sql, new { DeviceId = deviceId });
     }
@@ -46,17 +67,37 @@ public class SensorRepository(DapperContext context) : ISensorRepository
         const string sql =
             @"
             INSERT INTO sensor_settings (
-                device_id, port_number, name, slug, data_type, unit, 
+                device_id, port_number, name, slug, data_type, 
+                register_address, register_type, unit, 
                 input_min, input_max, output_min, output_max, 
                 offset_val, formula, ui_config, updated_at
             ) VALUES (
-                @DeviceId, @PortNumber, @Name, @Slug, @DataType, @Unit, 
+                @DeviceId, @PortNumber, @Name, @Slug, @DataTypeStr::sensor_data_type, 
+                @RegisterAddress, @RegisterTypeStr::modbus_register_type, @Unit, 
                 @InputMin, @InputMax, @OutputMin, @OutputMax, 
                 @OffsetVal, @Formula, @UiConfigJson, @UpdatedAt
             ) RETURNING sensor_id";
 
         using var connection = _context.CreateConnection();
-        return await connection.QuerySingleAsync<int>(sql, sensor);
+        return await connection.QuerySingleAsync<int>(sql, new
+        {
+            sensor.DeviceId,
+            sensor.PortNumber,
+            sensor.Name,
+            sensor.Slug,
+            DataTypeStr = ToSnakeCase(sensor.DataType.ToString()),
+            sensor.RegisterAddress,
+            RegisterTypeStr = ToSnakeCase(sensor.RegisterType.ToString()),
+            sensor.Unit,
+            sensor.InputMin,
+            sensor.InputMax,
+            sensor.OutputMin,
+            sensor.OutputMax,
+            sensor.OffsetVal,
+            sensor.Formula,
+            sensor.UiConfigJson,
+            sensor.UpdatedAt
+        });
     }
 
     /// <inheritdoc />
@@ -69,7 +110,9 @@ public class SensorRepository(DapperContext context) : ISensorRepository
                 port_number = @PortNumber,
                 name = @Name,
                 slug = @Slug,
-                data_type = @DataType,
+                data_type = @DataTypeStr::sensor_data_type,
+                register_address = @RegisterAddress,
+                register_type = @RegisterTypeStr::modbus_register_type,
                 unit = @Unit,
                 input_min = @InputMin,
                 input_max = @InputMax,
@@ -82,8 +125,30 @@ public class SensorRepository(DapperContext context) : ISensorRepository
             WHERE sensor_id = @SensorId";
 
         using var connection = _context.CreateConnection();
-        await connection.ExecuteAsync(sql, sensor);
+        await connection.ExecuteAsync(sql, new
+        {
+            sensor.DeviceId,
+            sensor.PortNumber,
+            sensor.Name,
+            sensor.Slug,
+            DataTypeStr = ToSnakeCase(sensor.DataType.ToString()),
+            sensor.RegisterAddress,
+            RegisterTypeStr = ToSnakeCase(sensor.RegisterType.ToString()),
+            sensor.Unit,
+            sensor.InputMin,
+            sensor.InputMax,
+            sensor.OutputMin,
+            sensor.OutputMax,
+            sensor.OffsetVal,
+            sensor.Formula,
+            sensor.UiConfigJson,
+            sensor.UpdatedAt,
+            sensor.SensorId
+        });
     }
+
+    private static string ToSnakeCase(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, "(?<!^)([A-Z])", "_$1").ToUpper();
 
     /// <inheritdoc />
     public async Task DeleteAsync(int sensorId)

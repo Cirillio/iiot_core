@@ -25,6 +25,21 @@ public record SensorSettings
     /// </summary>
     public int? PortNumber { get; init; }
 
+    /// <summary>
+    /// Адрес регистра Modbus для этого датчика (0-65535).
+    /// </summary>
+    public int RegisterAddress { get; init; }
+
+    /// <summary>
+    /// Тип регистра Modbus — определяет Function Code при чтении.
+    /// </summary>
+    public ModbusRegisterType RegisterType { get; init; } = ModbusRegisterType.InputRegister;
+
+    /// <summary>
+    /// Количество последовательных регистров для чтения (1 для 16-bit, 2 для 32-bit).
+    /// </summary>
+    public int RegisterCount { get; init; } = 1;
+
     // --- Описательные данные ---
 
     /// <summary>
@@ -40,7 +55,7 @@ public record SensorSettings
     /// <summary>
     /// Тип данных датчика (Аналоговый, Дискретный, Виртуальный).
     /// </summary>
-    public SensorDataType DataType { get; init; } = SensorDataType.ANALOG;
+    public SensorDataType DataType { get; init; } = SensorDataType.Analog;
 
     /// <summary>
     /// Единица измерения физической величины (например, "°C", "Bar", "V", "%").

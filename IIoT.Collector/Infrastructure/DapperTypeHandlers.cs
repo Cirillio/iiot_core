@@ -1,41 +1,25 @@
 using System.Data;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Dapper;
+using Npgsql;
 
 namespace IIoT.Collector.Infrastructure;
 
 /// <summary>
-/// Обработчик типов для Dapper, который маппит строки из БД в Enums.
+/// Транслятор имен для Npgsql: PascalCase (C#) to UPPER_SNAKE_CASE (Postgres enum).
 /// </summary>
-public class EnumStringHandler<T> : SqlMapper.TypeHandler<T>
-    where T : struct, Enum
+public class CollectorNameTranslator : INpgsqlNameTranslator
 {
-    public override void SetValue(IDbDataParameter parameter, T value)
-    {
-        parameter.Value = value.ToString();
-    }
+    public string TranslateMemberName(string clrName) =>
+        Regex.Replace(clrName, "(?<!^)([A-Z])", "_$1").ToUpper();
 
-    public override T Parse(object value)
-    {
-        if (value is string s && Enum.TryParse<T>(s, true, out var result))
-        {
-            return result;
-        }
-
-        if (value == null || value is DBNull)
-            throw new DataException($"Cannot parse null to enum {typeof(T).Name}");
-
-        throw new DataException(
-            $"Cannot parse '{value}' ({value.GetType()}) to enum {typeof(T).Name}"
-        );
-    }
+    public string TranslateTypeName(string clrName) => clrName;
 }
 
 /// <summary>
 /// Обработчик для работы с JSON/JSONB колонками PostgreSQL.
-/// Автоматически сериализует/десериализует объекты в JSON строки.
 /// </summary>
-/// <typeparam name="T">Тип C# объекта для маппинга</typeparam>
 public class JsonTypeHandler<T> : SqlMapper.TypeHandler<T>
 {
     public override void SetValue(IDbDataParameter parameter, T? value)
