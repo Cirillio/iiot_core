@@ -437,7 +437,7 @@ public class ModbusWorker(
             return true;
         }
 
-        if (s.DataType == TagDataType.Analog)
+        if (s.DataType is TagDataType.AnalogRaw or TagDataType.AnalogPhysical)
         {
             // Проверка изменения на % от диапазона тега
             var delta = Math.Abs(m.Value - last.Value);
@@ -445,7 +445,9 @@ public class ModbusWorker(
             if (range < 0.0001)
                 range = 100.0; // Дефолтный диапазон, если не задан
 
-            var threshold = range * _currentConfig.DeadbandThreshold;
+            // Индивидуальный порог тега имеет приоритет над глобальным
+            var deadband = s.DeadbandThreshold ?? _currentConfig.DeadbandThreshold;
+            var threshold = range * deadband;
             var shouldSave = delta > threshold;
 
             if (!shouldSave)

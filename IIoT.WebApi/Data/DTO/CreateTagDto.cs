@@ -20,5 +20,6 @@ public record CreateTagDto(
     double OffsetVal,
     string? Formula,
     string UiConfig,
-    string? Endianness = null
+    string? Endianness = null,
+    double? DeadbandThreshold = null
 );

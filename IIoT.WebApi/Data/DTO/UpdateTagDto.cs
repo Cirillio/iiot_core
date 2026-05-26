@@ -19,5 +19,6 @@ public record UpdateTagDto(
     double OffsetVal,
     string? Formula,
     string UiConfig,
-    string? Endianness = null
+    string? Endianness = null,
+    double? DeadbandThreshold = null
 );
