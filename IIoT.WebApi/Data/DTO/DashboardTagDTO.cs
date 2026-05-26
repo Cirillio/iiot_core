@@ -3,17 +3,17 @@ using IIoT.Shared.Models;
 namespace IIoT.WebApi.Data.DTO;
 
 /// <summary>
-/// DTO датчика для отображения на дашборде. Содержит метаданные, необходимые для визуализации.
+/// DTO тега для отображения на дашборде. Содержит метаданные, необходимые для визуализации.
 /// </summary>
-public record DashboardSensorDTO
+public record DashboardTagDTO
 {
     /// <summary>
-    /// Уникальный ID датчика.
+    /// Уникальный ID тега.
     /// </summary>
-    public int SensorId { get; init; }
+    public int TagId { get; init; }
 
     /// <summary>
-    /// ID устройства, к которому подключен датчик.
+    /// ID устройства, к которому привязан тег.
     /// </summary>
     public int DeviceId { get; init; }
 
@@ -23,19 +23,19 @@ public record DashboardSensorDTO
     public int PortNumber { get; init; }
 
     /// <summary>
-    /// Название датчика (напр. "Температура котла").
+    /// Название тега (напр. "Температура котла").
     /// </summary>
-    public string Name { get; init; } = "Unnamed sensor";
+    public string Name { get; init; } = "Unnamed tag";
 
     /// <summary>
     /// Уникальный строковый код (для системных ссылок).
     /// </summary>
-    public string Slug { get; init; } = "unnamed-sensor";
+    public string Slug { get; init; } = "unnamed-tag";
 
     /// <summary>
     /// Тип сигнала (ANALOG, DIGITAL, VIRTUAL).
     /// </summary>
-    public SensorDataType SensorDataType { get; init; }
+    public TagDataType DataType { get; init; }
 
     /// <summary>
     /// Единица измерения (напр. "°C").
@@ -45,7 +45,7 @@ public record DashboardSensorDTO
     /// <summary>
     /// Конфигурация интерфейса (цвета, иконки, границы).
     /// </summary>
-    public SensorUiConfig UiConfigJson { get; init; } = new();
+    public TagUiConfig UiConfigJson { get; init; } = new();
 
     /// <summary>
     /// Время последнего изменения настроек.

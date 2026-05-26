@@ -10,50 +10,81 @@ public class ProcessService : IProcessService
 {
     /// <inheritdoc />
     public IEnumerable<Metric> Process(
-        IEnumerable<(int SensorId, ushort[] RawValues)> rawData,
-        IEnumerable<SensorSettings> sensors
+        IEnumerable<(int TagId, ushort[] RawValues)> rawData,
+        IEnumerable<TagSettings> tags
     )
     {
         var timestamp = DateTime.UtcNow;
-        var sensorMap = sensors.ToDictionary(s => s.SensorId);
+        var tagMap = tags.ToDictionary(s => s.TagId);
 
-        foreach (var (sensorId, rawArray) in rawData)
+        foreach (var (tagId, rawArray) in rawData)
         {
-            if (!sensorMap.TryGetValue(sensorId, out var sensor))
+            if (!tagMap.TryGetValue(tagId, out var tag))
                 continue;
 
-            double finalRawValue = 0;
+            double finalRawValue;
 
-            if (sensor.RegisterCount == 1 && rawArray.Length >= 1)
+            if (tag.RegisterCount == 2 && rawArray.Length >= 2)
             {
-                finalRawValue = rawArray[0];
+                finalRawValue = BitConverter.ToSingle(
+                    BuildOrderedBytes(rawArray, 2, tag.Endianness),
+                    0
+                );
             }
-            else if (sensor.RegisterCount == 2 && rawArray.Length >= 2)
+            else if (tag.RegisterCount == 4 && rawArray.Length >= 4)
             {
-                // По умолчанию предполагаем Big-Endian Float32 (самый частый случай в Modbus)
-                // Можем добавить выбор байтового порядка в будущем
-                byte[] bytes = new byte[4];
-                BitConverter.TryWriteBytes(bytes.AsSpan(0, 2), rawArray[1]); // Low 16 bits
-                BitConverter.TryWriteBytes(bytes.AsSpan(2, 2), rawArray[0]); // High 16 bits
-                
-                // Modbus Float обычно передается как High-word first, Low-word second
-                // Но внутри слов байты тоже могут быть переставлены.
-                // Самый стандартный: CD AB (или AB CD в зависимости от того как смотреть)
-                
-                finalRawValue = BitConverter.ToSingle(bytes, 0);
+                finalRawValue = BitConverter.ToDouble(
+                    BuildOrderedBytes(rawArray, 4, tag.Endianness),
+                    0
+                );
             }
             else if (rawArray.Length > 0)
             {
                 finalRawValue = rawArray[0];
             }
+            else
+            {
+                continue;
+            }
 
             yield return new Metric
             {
                 Time = timestamp,
-                SensorId = sensor.SensorId,
+                TagId = tag.TagId,
                 RawValue = finalRawValue,
-                Value = SensorExtensions.Calculate(finalRawValue, sensor),
+                Value = TagExtensions.Calculate(finalRawValue, tag),
             };
         }
+    }
+
+    /// <summary>
+    /// Раскладывает N 16-битных регистров в массив байт согласно порядку слов/байт тега.
+    /// Работает для 32-бит (count=2, Float) и 64-бит (count=4, Double).
+    /// Возвращает байты в порядке LSB-first — готовые для BitConverter на little-endian хосте (x86/x64).
+    /// </summary>
+    /// <remarks>
+    /// Два независимых преобразования относительно полученного порядка регистров (reg0 — младший адрес):
+    /// слово-реверс (старшее слово первым) и реверс байт внутри слова. Их комбинации дают 4 режима:
+    /// BigEndian (ABCD), WordSwap (CDAB), ByteWordSwap (BADC), LittleEndian (DCBA).
+    /// </remarks>
+    private static byte[] BuildOrderedBytes(ushort[] regs, int count, ModbusEndianness endianness)
+    {
+        bool wordReversed =
+            endianness is ModbusEndianness.BigEndian or ModbusEndianness.ByteWordSwap;
+        bool byteBigInWord =
+            endianness is ModbusEndianness.ByteWordSwap or ModbusEndianness.LittleEndian;
+
+        var bytes = new byte[count * 2];
+        for (int i = 0; i < count; i++)
+        {
+            int srcWord = wordReversed ? count - 1 - i : i;
+            ushort w = regs[srcWord];
+            byte hi = (byte)(w >> 8),
+                lo = (byte)(w & 0xFF);
+            bytes[i * 2] = byteBigInWord ? hi : lo;
+            bytes[i * 2 + 1] = byteBigInWord ? lo : hi;
+        }
+
+        return bytes;
     }
 }

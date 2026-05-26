@@ -46,7 +46,8 @@ builder.Services.AddSingleton<DapperContext>();
 
 // Register Repositories
 builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
-builder.Services.AddScoped<ISensorRepository, SensorRepository>();
+builder.Services.AddScoped<IConnectionRepository, ConnectionRepository>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IMetricsRepository, MetricsRepository>();
 builder.Services.AddScoped<ISystemRepository, SystemRepository>();
 

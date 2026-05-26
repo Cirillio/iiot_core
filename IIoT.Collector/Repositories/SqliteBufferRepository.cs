@@ -31,7 +31,7 @@ public class SqliteBufferRepository : IBufferRepository
                 CREATE TABLE IF NOT EXISTS buffered_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     time_ticks INTEGER NOT NULL,
-                    sensor_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
                     raw_value REAL,
                     value REAL NOT NULL
                 );
@@ -61,8 +61,8 @@ public class SqliteBufferRepository : IBufferRepository
 
             const string sql =
                 @"
-                INSERT INTO buffered_metrics (time_ticks, sensor_id, raw_value, value)
-                VALUES (@TimeTicks, @SensorId, @RawValue, @Value)";
+                INSERT INTO buffered_metrics (time_ticks, tag_id, raw_value, value)
+                VALUES (@TimeTicks, @TagId, @RawValue, @Value)";
 
             // Используем транзакцию для массовой вставки (значительно быстрее)
             await conn.ExecuteAsync(
@@ -70,7 +70,7 @@ public class SqliteBufferRepository : IBufferRepository
                 list.Select(m => new
                 {
                     TimeTicks = m.Time.Ticks,
-                    m.SensorId,
+                    m.TagId,
                     m.RawValue,
                     m.Value,
                 }),
@@ -98,7 +98,7 @@ public class SqliteBufferRepository : IBufferRepository
             // Выбираем N самых старых записей
             const string sql =
                 @"
-                SELECT time_ticks, sensor_id, raw_value, value
+                SELECT time_ticks, tag_id, raw_value, value
                 FROM buffered_metrics
                 ORDER BY id ASC
                 LIMIT @Count";
@@ -109,7 +109,7 @@ public class SqliteBufferRepository : IBufferRepository
             return raw.Select(r => new Metric
             {
                 Time = new DateTime((long)r.time_ticks, DateTimeKind.Utc),
-                SensorId = (int)r.sensor_id,
+                TagId = (int)r.tag_id,
                 RawValue = (double?)r.raw_value,
                 Value = (double)r.value,
             });

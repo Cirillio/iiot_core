@@ -27,23 +27,28 @@ public interface IModbusService
     );
 
     /// <summary>
-    /// Читает регистры для списка датчиков одного типа.
-    /// Группирует смежные адреса в один batch-запрос для эффективности.
-    /// Поддерживает многорегистровые датчики (32-bit).
+    /// Читает регистры для списка тегов одного типа.
+    /// При useGroupPolling=true группирует смежные адреса в batch-запросы (ширина чанка
+    /// ограничена maxRegisterSpan); при false — каждый тег читается отдельным запросом.
+    /// Поддерживает многорегистровые теги (32-bit).
     /// </summary>
     /// <param name="master">Активный Modbus Master.</param>
     /// <param name="slaveId">Unit ID устройства.</param>
-    /// <param name="sensors">Список настроек сенсоров одного типа.</param>
+    /// <param name="tags">Список настроек тегов одного типа.</param>
     /// <param name="registerType">Тип регистра (Input, Holding, Discrete, Coil).</param>
+    /// <param name="maxRegisterSpan">Максимальная ширина чанка (диапазон адресов) при группировке.</param>
+    /// <param name="useGroupPolling">Включить групповой опрос смежных регистров.</param>
     /// <param name="ct">Токен отмены.</param>
     /// <returns>
-    /// Коллекция кортежей (SensorId, Массив сырых значений).
+    /// Коллекция кортежей (TagId, Массив сырых значений).
     /// </returns>
-    Task<IEnumerable<(int SensorId, ushort[] RawValues)>> ReadRegistersAsync(
+    Task<IEnumerable<(int TagId, ushort[] RawValues)>> ReadRegistersAsync(
         IModbusMaster master,
         byte slaveId,
-        IEnumerable<SensorSettings> sensors,
+        IEnumerable<TagSettings> tags,
         ModbusRegisterType registerType,
+        int maxRegisterSpan,
+        bool useGroupPolling,
         CancellationToken ct
     );
 }

@@ -13,13 +13,13 @@ public class MetricsController(IMetricsRepository repository) : ControllerBase
     /// Возвращает историю показаний датчика для графиков.
     /// Автоматически выбирает между сырыми данными и часовыми агрегатами.
     /// </summary>
-    /// <param name="sensorId">ID датчика</param>
+    /// <param name="tagId">ID датчика</param>
     /// <param name="from">Начало периода (ISO 8601)</param>
     /// <param name="to">Конец периода (ISO 8601)</param>
     /// <returns>Массив массивов [[timestamp_ms, value], ...]</returns>
     [HttpGet("history")]
     public async Task<ActionResult<IEnumerable<object[]>>> GetHistory(
-        [FromQuery] int sensorId,
+        [FromQuery] int tagId,
         [FromQuery] DateTime from,
         [FromQuery] DateTime to
     )
@@ -29,7 +29,7 @@ public class MetricsController(IMetricsRepository repository) : ControllerBase
             return BadRequest("Дата 'from' должна быть меньше даты 'to'");
         }
 
-        var data = await _repository.GetHistoryAsync(sensorId, from, to);
+        var data = await _repository.GetHistoryAsync(tagId, from, to);
         return Ok(data);
     }
 }

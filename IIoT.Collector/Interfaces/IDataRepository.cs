@@ -28,11 +28,18 @@ public interface IDataRepository
     Task<IEnumerable<Device>> GetActiveDevicesAsync();
 
     /// <summary>
-    /// Получает полные настройки всех датчиков.
-    /// Используется для маппинга данных (Device + Port -> SensorID) и калибровки значений.
+    /// Получает все физические соединения (сокеты) Modbus.
+    /// Используется коллектором для резолва ip:port по ConnectionId устройства.
     /// </summary>
-    /// <returns>Коллекция настроек датчиков.</returns>
-    Task<IEnumerable<SensorSettings>> GetSensorSettingsAsync();
+    /// <returns>Коллекция соединений.</returns>
+    Task<IEnumerable<ModbusConnection>> GetConnectionsAsync();
+
+    /// <summary>
+    /// Получает полные настройки всех тегов.
+    /// Используется для маппинга данных (Device + Port -> TagId) и калибровки значений.
+    /// </summary>
+    /// <returns>Коллекция настроек тегов.</returns>
+    Task<IEnumerable<TagSettings>> GetTagSettingsAsync();
 
     /// <summary>
     /// Получает глобальную конфигурацию системы (интервалы опроса, политики хранения данных и т.д.).

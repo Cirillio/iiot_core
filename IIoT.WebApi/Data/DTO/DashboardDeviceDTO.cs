@@ -17,12 +17,17 @@ public record DashboardDeviceDTO
     public string Name { get; init; } = "Unnamed Device";
 
     /// <summary>
-    /// IP-адрес контроллера.
+    /// ID физического соединения (modbus_connections).
+    /// </summary>
+    public int ConnectionId { get; init; }
+
+    /// <summary>
+    /// IP-адрес шлюза/контроллера (из modbus_connections).
     /// </summary>
     public string IpAddress { get; init; } = "127.0.0.1";
 
     /// <summary>
-    /// Порт Modbus TCP.
+    /// Порт Modbus TCP (из modbus_connections).
     /// </summary>
     public int Port { get; init; }
 
@@ -30,6 +35,16 @@ public record DashboardDeviceDTO
     /// Modbus Unit ID.
     /// </summary>
     public int SlaveId { get; init; }
+
+    /// <summary>
+    /// Включён ли групповой опрос смежных регистров.
+    /// </summary>
+    public bool UseGroupPolling { get; init; } = true;
+
+    /// <summary>
+    /// Максимальная ширина чанка при групповом опросе.
+    /// </summary>
+    public int MaxRegisterSpan { get; init; } = 120;
 
     /// <summary>
     /// Состояние активности опроса.
@@ -42,12 +57,12 @@ public record DashboardDeviceDTO
     public DateTime CreatedAt { get; init; }
 
     /// <summary>
-    /// Список датчиков, подключенных к данному устройству.
+    /// Список тегов, привязанных к данному устройству.
     /// </summary>
-    public List<DashboardSensorDTO> Sensors { get; init; } = [];
+    public List<DashboardTagDTO> Tags { get; init; } = [];
 
     /// <summary>
-    /// Общее количество датчиков (включая скрытые фильтром).
+    /// Общее количество тегов (включая скрытые фильтром).
     /// </summary>
-    public int TotalSensors { get; init; }
+    public int TotalTags { get; init; }
 }

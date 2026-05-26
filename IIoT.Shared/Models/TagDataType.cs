@@ -1,11 +1,11 @@
 namespace IIoT.Shared.Models;
 
 /// <summary>
-/// Перечисление типов данных датчиков.
-/// Соответствует пользовательскому типу данных (ENUM) 'sensor_data_type' в базе данных PostgreSQL.
+/// Тип данных тега (точки опроса).
+/// Соответствует ENUM 'tag_data_type' в PostgreSQL.
 /// Определяет способ обработки "сырых" данных.
 /// </summary>
-public enum SensorDataType
+public enum TagDataType
 {
     /// <summary>
     /// Аналоговый сигнал (например, температура, давление).
@@ -18,7 +18,7 @@ public enum SensorDataType
     Digital,
 
     /// <summary>
-    /// Виртуальный датчик.
+    /// Виртуальный тег (вычисляется по формуле из других тегов).
     /// </summary>
     Virtual,
 }

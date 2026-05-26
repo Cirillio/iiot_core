@@ -5,44 +5,44 @@ namespace IIoT.WebApi.Core.Interfaces;
 /// <summary>
 /// Интерфейс репозитория для управления настройками датчиков (сенсоров).
 /// </summary>
-public interface ISensorRepository
+public interface ITagRepository
 {
     /// <summary>
     /// Получить все датчики из системы.
     /// </summary>
     /// <returns>Коллекция всех настроек датчиков.</returns>
-    Task<IEnumerable<SensorSettings>> GetAllAsync();
+    Task<IEnumerable<TagSettings>> GetAllAsync();
 
     /// <summary>
     /// Получить настройки конкретного датчика по его идентификатору.
     /// </summary>
-    /// <param name="sensorId">Уникальный ID датчика.</param>
+    /// <param name="tagId">Уникальный ID датчика.</param>
     /// <returns>Объект настроек или null, если не найден.</returns>
-    Task<SensorSettings?> GetByIdAsync(int sensorId);
+    Task<TagSettings?> GetByIdAsync(int tagId);
 
     /// <summary>
     /// Получить список датчиков, привязанных к конкретному устройству.
     /// </summary>
     /// <param name="deviceId">ID устройства.</param>
     /// <returns>Коллекция датчиков устройства.</returns>
-    Task<IEnumerable<SensorSettings>> GetByDeviceIdAsync(int deviceId);
+    Task<IEnumerable<TagSettings>> GetByDeviceIdAsync(int deviceId);
 
     /// <summary>
     /// Добавить новый датчик в базу данных.
     /// </summary>
-    /// <param name="sensor">Объект настроек датчика.</param>
+    /// <param name="tag">Объект настроек датчика.</param>
     /// <returns>ID созданного датчика.</returns>
-    Task<int> AddAsync(SensorSettings sensor);
+    Task<int> AddAsync(TagSettings tag);
 
     /// <summary>
     /// Обновить существующие настройки датчика.
     /// </summary>
-    /// <param name="sensor">Объект с обновленными данными.</param>
-    Task UpdateAsync(SensorSettings sensor);
+    /// <param name="tag">Объект с обновленными данными.</param>
+    Task UpdateAsync(TagSettings tag);
 
     /// <summary>
     /// Удалить датчик из системы.
     /// </summary>
-    /// <param name="sensorId">ID датчика.</param>
-    Task DeleteAsync(int sensorId);
+    /// <param name="tagId">ID датчика.</param>
+    Task DeleteAsync(int tagId);
 }

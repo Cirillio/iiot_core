@@ -8,27 +8,33 @@ using NModbus;
 namespace IIoT.Collector.Interfaces;
 
 /// <summary>
-/// Сервис управления соединениями с Modbus-устройствами.
-/// Отвечает за создание, кэширование и восстановление подключений.
+/// Сервис управления физическими соединениями Modbus TCP.
+/// Пул сокетов индексируется по ConnectionId — несколько устройств (Slave ID) могут
+/// делить одно соединение (RS-485→TCP шлюз). Доступ к сокету сериализуется семафором.
 /// </summary>
 public interface IDeviceService
 {
     /// <summary>
-    /// Получает активный экземпляр Modbus Master для указанного устройства.
-    /// Если соединение уже установлено и активно, возвращает его.
-    /// Если соединения нет, пытается подключиться.
+    /// Получает активный Modbus Master для физического соединения.
+    /// Если соединение уже установлено — возвращает его, иначе подключается.
     /// </summary>
-    /// <param name="device">Устройство, к которому нужно подключиться.</param>
+    /// <param name="connection">Физическое соединение (ip:port).</param>
     /// <param name="ct">Токен отмены операции.</param>
-    /// <returns>
-    /// Экземпляр <see cref="IModbusMaster"/> или null, если подключение не удалось.
-    /// </returns>
-    Task<IModbusMaster?> GetConnectionAsync(Device device, CancellationToken ct);
+    /// <returns>Экземпляр <see cref="IModbusMaster"/> или null, если подключение не удалось.</returns>
+    Task<IModbusMaster?> GetConnectionAsync(ModbusConnection connection, CancellationToken ct);
 
     /// <summary>
-    /// Принудительно помечает соединение с устройством как невалидное (например, при ошибке IO).
-    /// При следующем запросе <see cref="GetConnectionAsync"/> будет предпринята попытка переподключения.
+    /// Помечает соединение как невалидное (при ошибке IO) — закрывает сокет.
+    /// При следующем <see cref="GetConnectionAsync"/> будет переподключение.
     /// </summary>
-    /// <param name="deviceId">ID устройства, соединение с которым нужно сбросить.</param>
-    void InvalidateConnection(int deviceId);
+    /// <param name="connectionId">ID соединения, которое нужно сбросить.</param>
+    void InvalidateConnection(int connectionId);
+
+    /// <summary>
+    /// Возвращает семафор (1,1) для сериализации доступа к TCP-сессии соединения.
+    /// Все опросы устройств за одним ConnectionId должны захватывать этот семафор,
+    /// чтобы не перемешивать Modbus TCP-фреймы в рамках одной сессии.
+    /// </summary>
+    /// <param name="connectionId">ID соединения.</param>
+    SemaphoreSlim GetLock(int connectionId);
 }

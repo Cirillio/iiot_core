@@ -10,7 +10,7 @@ public interface IMonitoringClient
     /// <summary>
     /// Уведомление об обновлении конфигурации устройства или датчика.
     /// </summary>
-    /// <param name="entityType">Тип ("DEVICE", "SENSOR")</param>
+    /// <param name="entityType">Тип ("DEVICE", "TAG", "CONNECTION")</param>
     /// <param name="entityId">ID измененной сущности</param>
     Task ConfigUpdated(string entityType, int entityId);
 

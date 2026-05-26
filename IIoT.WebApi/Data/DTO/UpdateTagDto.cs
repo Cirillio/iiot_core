@@ -1,10 +1,9 @@
 namespace IIoT.WebApi.Data.DTO;
 
 /// <summary>
-/// Данные для создания нового датчика.
+/// Данные для обновления настроек датчика.
 /// </summary>
-public record CreateSensorDto(
-    int DeviceId,
+public record UpdateTagDto(
     int PortNumber,
     string Name,
     string Slug,
@@ -19,5 +18,6 @@ public record CreateSensorDto(
     double OutputMax,
     double OffsetVal,
     string? Formula,
-    string UiConfig
+    string UiConfig,
+    string? Endianness = null
 );

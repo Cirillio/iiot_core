@@ -8,58 +8,61 @@ namespace IIoT.WebApi.Data.Repositories;
 
 /// <summary>
 /// Реализация репозитория для управления устройствами через Dapper.
+/// Сетевой сокет вынесен в modbus_connections, поэтому ip:port подтягивается через JOIN.
 /// </summary>
 public class DeviceRepository(DapperContext context) : IDeviceRepository
 {
     private readonly DapperContext _context = context;
 
     /// <inheritdoc />
-    public async Task<IEnumerable<DashboardDeviceDTO>> GetDevicesWithSensorsAsync(int? sensorLimit = null)
+    public async Task<IEnumerable<DashboardDeviceDTO>> GetDevicesWithTagsAsync(int? tagLimit = null)
     {
-        // Используем CTE с оконной функцией ROW_NUMBER() для фильтрации топ-N датчиков по mainPagePosition
-        // TotalSensors считаем отдельно, чтобы limit не обнулял счетчик
+        // CTE с ROW_NUMBER() для фильтрации топ-N тегов по mainPagePosition.
+        // TotalTags считаем отдельно, чтобы limit не обнулял счётчик.
         var sql =
             @"
-            WITH RankedSensors AS (
-                SELECT 
+            WITH RankedTags AS (
+                SELECT
                     s.*,
                     ROW_NUMBER() OVER (
-                        PARTITION BY s.device_id 
-                        ORDER BY 
+                        PARTITION BY s.device_id
+                        ORDER BY
                             COALESCE((s.ui_config->>'mainPagePosition')::int, 9999) ASC,
-                            s.sensor_id ASC
+                            s.tag_id ASC
                     ) as rn
-                FROM sensor_settings s
+                FROM tags s
             ),
             DeviceTotals AS (
                 SELECT device_id, COUNT(*) as total_count
-                FROM sensor_settings
+                FROM tags
                 GROUP BY device_id
             )
-            SELECT 
-                d.id, d.name, d.ip_address, d.port, d.slave_id, d.is_active, d.created_at,
-                COALESCE(dt.total_count, 0) as TotalSensors,
-                rs.sensor_id, 
-                rs.device_id, 
-                rs.port_number, 
-                rs.name, 
-                rs.slug, 
-                rs.data_type AS SensorDataType, 
-                rs.unit, 
-                rs.ui_config AS UiConfigJson, 
+            SELECT
+                d.id, d.name, d.connection_id, d.slave_id, d.use_group_polling, d.max_register_span, d.is_active, d.created_at,
+                mc.ip_address, mc.port,
+                COALESCE(dt.total_count, 0) as TotalTags,
+                rs.tag_id,
+                rs.device_id,
+                rs.port_number,
+                rs.name,
+                rs.slug,
+                rs.data_type AS DataType,
+                rs.unit,
+                rs.ui_config AS UiConfigJson,
                 rs.updated_at
             FROM devices d
+            JOIN modbus_connections mc ON d.connection_id = mc.id
             LEFT JOIN DeviceTotals dt ON d.id = dt.device_id
-            LEFT JOIN RankedSensors rs ON d.id = rs.device_id AND (@Limit IS NULL OR rs.rn <= @Limit)
+            LEFT JOIN RankedTags rs ON d.id = rs.device_id AND (@Limit IS NULL OR rs.rn <= @Limit)
             ORDER BY d.id, rs.rn";
 
         var devices = new Dictionary<int, DashboardDeviceDTO>();
 
         using var connection = _context.CreateConnection();
 
-        await connection.QueryAsync<DashboardDeviceDTO, DashboardSensorDTO, DashboardDeviceDTO>(
+        await connection.QueryAsync<DashboardDeviceDTO, DashboardTagDTO, DashboardDeviceDTO>(
             sql,
-            (device, sensor) =>
+            (device, tag) =>
             {
                 if (!devices.TryGetValue(device.Id, out var currentDevice))
                 {
@@ -67,52 +70,47 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
                     devices.Add(currentDevice.Id, currentDevice);
                 }
 
-                // Dapper маппит TotalSensors из первого объекта (device), поэтому дополнительно присваивать не нужно,
-                // но важно убедиться, что свойство заполнилось.
-                // При MultiMapping Dapper клонирует объект device для каждой строки, 
-                // но так как мы используем Dictionary, мы берем только первый экземпляр.
-
-                if (sensor != null && sensor.SensorId != 0)
+                if (tag != null && tag.TagId != 0)
                 {
-                    currentDevice.Sensors.Add(sensor);
+                    currentDevice.Tags.Add(tag);
                 }
 
                 return currentDevice;
             },
-            new { Limit = sensorLimit },
-            splitOn: "sensor_id"
+            new { Limit = tagLimit },
+            splitOn: "tag_id"
         );
 
         return devices.Values;
     }
 
     /// <inheritdoc />
-    public async Task<Device?> GetDeviceByIdWithSensorsAsync(int _deviceId)
+    public async Task<Device?> GetDeviceByIdWithTagsAsync(int _deviceId)
     {
         var sql =
             @"
-            SELECT d.*, s.* 
+            SELECT d.*, s.*
             FROM devices d
-            LEFT JOIN sensor_settings s ON d.id = s.device_id
+            LEFT JOIN tags s ON d.id = s.device_id
             WHERE d.id = @Id";
 
         Device? device = null;
 
         using var connection = _context.CreateConnection();
 
-        await connection.QueryAsync<Device, SensorSettings, Device>(
+        await connection.QueryAsync<Device, TagSettings, Device>(
             sql,
             (d, s) =>
             {
                 device ??= d;
-                if (s != null && s.SensorId != 0)
+                if (s != null && s.TagId != 0)
                 {
-                    device.Sensors.Add(s);
+                    device.Tags.Add(s);
                 }
                 return d;
             },
             new { Id = _deviceId },
-            splitOn: "sensor_id"
+            splitOn: "tag_id"
         );
 
         return device;
@@ -123,8 +121,8 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
     {
         var sql =
             @"
-            INSERT INTO devices (name, ip_address, port, slave_id, is_active, created_at)
-            VALUES (@Name, @IpAddress, @Port, @SlaveId, @IsActive, @CreatedAt)
+            INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active, created_at)
+            VALUES (@Name, @ConnectionId, @SlaveId, @UseGroupPolling, @MaxRegisterSpan, @IsActive, @CreatedAt)
             RETURNING id;";
 
         using var connection = _context.CreateConnection();
@@ -138,9 +136,10 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
             @"
             UPDATE devices
             SET name = @Name,
-                ip_address = @IpAddress,
-                port = @Port,
+                connection_id = @ConnectionId,
                 slave_id = @SlaveId,
+                use_group_polling = @UseGroupPolling,
+                max_register_span = @MaxRegisterSpan,
                 is_active = @IsActive
             WHERE id = @Id;";
 
