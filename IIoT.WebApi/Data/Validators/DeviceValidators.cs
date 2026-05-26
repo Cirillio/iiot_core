@@ -18,7 +18,7 @@ public class CreateDeviceDtoValidator : AbstractValidator<CreateDeviceDto>
             .InclusiveBetween(1, 247).WithMessage("Slave ID должен быть в диапазоне от 1 до 247");
 
         RuleFor(x => x.MaxRegisterSpan)
-            .InclusiveBetween(1, 125).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 125");
+            .InclusiveBetween(1, 2000).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 2000 (для регистров коллектор урежет до 125)");
     }
 }
 
@@ -37,6 +37,6 @@ public class UpdateDeviceDtoValidator : AbstractValidator<UpdateDeviceDto>
             .InclusiveBetween(1, 247).WithMessage("Slave ID должен быть в диапазоне от 1 до 247");
 
         RuleFor(x => x.MaxRegisterSpan)
-            .InclusiveBetween(1, 125).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 125");
+            .InclusiveBetween(1, 2000).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 2000 (для регистров коллектор урежет до 125)");
     }
 }

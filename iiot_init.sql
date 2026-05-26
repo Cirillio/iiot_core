@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- 1. ENUMS
 DO $$ BEGIN
-    CREATE TYPE tag_data_type AS ENUM ('ANALOG', 'DIGITAL', 'VIRTUAL');
+    CREATE TYPE tag_data_type AS ENUM ('ANALOG_RAW', 'ANALOG_PHYSICAL', 'DIGITAL', 'VIRTUAL');
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS tags (
     port_number INT,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(50) UNIQUE,
-    data_type tag_data_type DEFAULT 'ANALOG',
+    data_type tag_data_type DEFAULT 'ANALOG_RAW',
     register_address INTEGER NOT NULL DEFAULT 0,
     register_type modbus_register_type NOT NULL DEFAULT 'INPUT_REGISTER',
     register_count SMALLINT NOT NULL DEFAULT 1,
@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tags (
     output_min DOUBLE PRECISION DEFAULT 0,
     output_max DOUBLE PRECISION DEFAULT 100,
     offset_val DOUBLE PRECISION DEFAULT 0,
+    deadband_threshold DOUBLE PRECISION,
     formula TEXT,
     ui_config JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -185,8 +186,8 @@ VALUES ('ADAM-6017',
 INSERT INTO tags
     (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, unit, input_min, input_max, output_min, output_max)
 VALUES
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 0, 'Температура',     'adam_temp',     'ANALOG'::tag_data_type,  0, 'INPUT_REGISTER'::modbus_register_type,  1, '°C',  0, 65535, -50, 150),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 1, 'Входное давление','adam_press_in', 'ANALOG'::tag_data_type,  1, 'INPUT_REGISTER'::modbus_register_type,  1, 'Bar', 0, 65535,   0,  10),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG'::tag_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG'::tag_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::tag_data_type, 0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1);
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 0, 'Температура',     'adam_temp',     'ANALOG_RAW'::tag_data_type,  0, 'INPUT_REGISTER'::modbus_register_type,  1, '°C',  0, 65535, -50, 150),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 1, 'Входное давление','adam_press_in', 'ANALOG_RAW'::tag_data_type,  1, 'INPUT_REGISTER'::modbus_register_type,  1, 'Bar', 0, 65535,   0,  10),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG_RAW'::tag_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG_RAW'::tag_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::tag_data_type,     0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1);

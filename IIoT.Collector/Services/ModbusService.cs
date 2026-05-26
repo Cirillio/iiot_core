@@ -63,8 +63,17 @@ public class ModbusService : IModbusService
         if (allTags.Count == 0)
             return [];
 
+        // Жёсткий лимит PDU зависит от типа таблицы памяти: 16-битные слова — 125 регистров,
+        // биты — 2000. device.MaxRegisterSpan может лишь СУЗИТЬ шаг, но не превысить физический
+        // максимум протокола, иначе устройство вернёт 0x03 Illegal Data Value.
+        int hardwareLimit =
+            registerType is ModbusRegisterType.HoldingRegister or ModbusRegisterType.InputRegister
+                ? 125
+                : 2000;
+        int effectiveSpan = Math.Min(maxRegisterSpan, hardwareLimit);
+
         var result = new List<(int TagId, ushort[] RawValues)>();
-        var chunks = CreateChunks(allTags, maxRegisterSpan, useGroupPolling);
+        var chunks = CreateChunks(allTags, effectiveSpan, useGroupPolling);
 
         foreach (var chunk in chunks)
         {

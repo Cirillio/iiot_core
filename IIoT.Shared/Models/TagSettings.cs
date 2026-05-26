@@ -58,9 +58,9 @@ public record TagSettings
     public string? Slug { get; init; }
 
     /// <summary>
-    /// Тип данных тега (Аналоговый, Дискретный, Виртуальный).
+    /// Тип данных тега (сырой АЦП, физическая величина, дискретный, виртуальный).
     /// </summary>
-    public TagDataType DataType { get; init; } = TagDataType.Analog;
+    public TagDataType DataType { get; init; } = TagDataType.AnalogRaw;
 
     /// <summary>
     /// Единица измерения физической величины ("°C", "Bar", "V", "%").
@@ -95,6 +95,12 @@ public record TagSettings
     /// Смещение, добавляемое к результату после масштабирования (калибровка нуля).
     /// </summary>
     public double OffsetVal { get; init; }
+
+    /// <summary>
+    /// Индивидуальный порог нечувствительности (Deadband) для этого тега.
+    /// null → используется глобальный SystemConfig.DeadbandThreshold.
+    /// </summary>
+    public double? DeadbandThreshold { get; init; }
 
     /// <summary>
     /// Формула для расчёта виртуального тега. Может содержать slug-и других тегов.

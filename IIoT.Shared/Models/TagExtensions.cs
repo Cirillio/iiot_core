@@ -13,9 +13,10 @@ public static class TagExtensions
     /// <param name="settings">Настройки тега (Min/Max, Offset, тип данных).</param>
     /// <returns>Откалиброванное значение (double).</returns>
     /// <remarks>
-    /// DIGITAL → 1.0 если rawValue > 0, иначе 0.0.
-    /// VIRTUAL → возвращает rawValue без изменений (парсинг формул — TODO).
-    /// ANALOG  → линейная интерполяция: ((Raw-InMin)/(InMax-InMin))*(OutMax-OutMin)+OutMin+Offset,
+    /// DIGITAL         → 1.0 если rawValue > 0, иначе 0.0.
+    /// VIRTUAL         → возвращает rawValue без изменений (парсинг формул — TODO).
+    /// ANALOG_PHYSICAL → готовая величина с прибора, возвращается как есть (только Offset).
+    /// ANALOG_RAW      → линейная интерполяция: ((Raw-InMin)/(InMax-InMin))*(OutMax-OutMin)+OutMin+Offset,
     /// с защитой от деления на ноль.
     /// </remarks>
     public static double Calculate(double rawValue, TagSettings settings)
@@ -30,6 +31,13 @@ public static class TagExtensions
             return rawValue;
         }
 
+        // Готовое инженерное значение с прибора — масштабирование не нужно, только калибровка нуля.
+        if (settings.DataType == TagDataType.AnalogPhysical)
+        {
+            return rawValue + settings.OffsetVal;
+        }
+
+        // AnalogRaw — линейная интерполяция сырого АЦП в физическую величину.
         // Защита от деления на ноль (эпсилон-сравнение).
         if (Math.Abs(settings.InputMax - settings.InputMin) < 0.000001)
         {

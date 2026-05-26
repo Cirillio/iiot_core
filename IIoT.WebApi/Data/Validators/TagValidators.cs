@@ -25,8 +25,8 @@ public class CreateTagDtoValidator : AbstractValidator<CreateTagDto>
             .WithMessage("Slug может содержать только строчные буквы, цифры и подчеркивания");
 
         RuleFor(x => x.DataType)
-            .Must(x => Enum.TryParse<TagDataType>(x, true, out _))
-            .WithMessage("Недопустимый тип данных. Допустимые значения: ANALOG, DIGITAL, VIRTUAL");
+            .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
+            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
 
         RuleFor(x => x.PortNumber)
             .InclusiveBetween(0, 65535)
@@ -53,8 +53,8 @@ public class UpdateTagDtoValidator : AbstractValidator<UpdateTagDto>
             .WithMessage("Slug может содержать только строчные буквы, цифры и подчеркивания");
 
         RuleFor(x => x.DataType)
-            .Must(x => Enum.TryParse<TagDataType>(x, true, out _))
-            .WithMessage("Недопустимый тип данных. Допустимые значения: ANALOG, DIGITAL, VIRTUAL");
+            .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
+            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
 
         RuleFor(x => x.PortNumber)
             .InclusiveBetween(0, 65535)

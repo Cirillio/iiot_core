@@ -67,7 +67,7 @@ public class TagsController(
     [HttpPost]
     public async Task<ActionResult<int>> Create(CreateTagDto dto)
     {
-        if (!Enum.TryParse<TagDataType>(dto.DataType, true, out var dataType))
+        if (!Enum.TryParse<TagDataType>(dto.DataType?.Replace("_", ""), true, out var dataType))
         {
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
@@ -103,6 +103,7 @@ public class TagsController(
             OutputMin = dto.OutputMin,
             OutputMax = dto.OutputMax,
             OffsetVal = dto.OffsetVal,
+            DeadbandThreshold = dto.DeadbandThreshold,
             Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,
@@ -128,7 +129,7 @@ public class TagsController(
         if (existing == null)
             return NotFound($"Датчик с ID {id} не найден");
 
-        if (!Enum.TryParse<TagDataType>(dto.DataType, true, out var dataType))
+        if (!Enum.TryParse<TagDataType>(dto.DataType?.Replace("_", ""), true, out var dataType))
         {
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
@@ -163,6 +164,7 @@ public class TagsController(
             OutputMin = dto.OutputMin,
             OutputMax = dto.OutputMax,
             OffsetVal = dto.OffsetVal,
+            DeadbandThreshold = dto.DeadbandThreshold,
             Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,

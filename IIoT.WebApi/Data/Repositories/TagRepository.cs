@@ -20,7 +20,7 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, formula, ui_config as UiConfigJson, updated_at
+                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
             ORDER BY tag_id";
         using var connection = _context.CreateConnection();
@@ -35,7 +35,7 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, formula, ui_config as UiConfigJson, updated_at
+                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
             WHERE tag_id = @Id";
         using var connection = _context.CreateConnection();
@@ -53,7 +53,7 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, formula, ui_config as UiConfigJson, updated_at
+                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
             WHERE device_id = @DeviceId 
             ORDER BY register_address, port_number";
@@ -70,12 +70,12 @@ public class TagRepository(DapperContext context) : ITagRepository
                 device_id, port_number, name, slug, data_type,
                 register_address, register_type, register_count, endianness, unit,
                 input_min, input_max, output_min, output_max,
-                offset_val, formula, ui_config, updated_at
+                offset_val, deadband_threshold, formula, ui_config, updated_at
             ) VALUES (
                 @DeviceId, @PortNumber, @Name, @Slug, @DataTypeStr::tag_data_type,
                 @RegisterAddress, @RegisterTypeStr::modbus_register_type, @RegisterCount, @EndiannessStr::modbus_endianness, @Unit,
                 @InputMin, @InputMax, @OutputMin, @OutputMax,
-                @OffsetVal, @Formula, @UiConfigJson, @UpdatedAt
+                @OffsetVal, @DeadbandThreshold, @Formula, @UiConfigJson, @UpdatedAt
             ) RETURNING tag_id";
 
         using var connection = _context.CreateConnection();
@@ -96,6 +96,7 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.OutputMin,
             tag.OutputMax,
             tag.OffsetVal,
+            tag.DeadbandThreshold,
             tag.Formula,
             tag.UiConfigJson,
             tag.UpdatedAt
@@ -123,6 +124,7 @@ public class TagRepository(DapperContext context) : ITagRepository
                 output_min = @OutputMin,
                 output_max = @OutputMax,
                 offset_val = @OffsetVal,
+                deadband_threshold = @DeadbandThreshold,
                 formula = @Formula,
                 ui_config = @UiConfigJson,
                 updated_at = @UpdatedAt
@@ -146,6 +148,7 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.OutputMin,
             tag.OutputMax,
             tag.OffsetVal,
+            tag.DeadbandThreshold,
             tag.Formula,
             tag.UiConfigJson,
             tag.UpdatedAt,
