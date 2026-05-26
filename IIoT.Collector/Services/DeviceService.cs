@@ -15,42 +15,56 @@ public class DeviceService(IModbusService modbusDriver) : IDeviceService, IDispo
 {
     private readonly ILogger _logger = Log.ForContext<DeviceService>();
 
-    // Храним пару (Master, Client)
-    // Key: DeviceId, Value: (ModbusMaster, TcpClient)
+    // Пул сокетов. Key: ConnectionId, Value: (ModbusMaster, TcpClient)
     private readonly ConcurrentDictionary<
         int,
         (IModbusMaster Master, TcpClient Client)
     > _connections = new();
 
+    // Семафоры сериализации доступа к TCP-сессии. Key: ConnectionId
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _locks = new();
+
     /// <inheritdoc />
-    public async Task<IModbusMaster?> GetConnectionAsync(Device device, CancellationToken ct)
+    public SemaphoreSlim GetLock(int connectionId) =>
+        _locks.GetOrAdd(connectionId, _ => new SemaphoreSlim(1, 1));
+
+    /// <inheritdoc />
+    public async Task<IModbusMaster?> GetConnectionAsync(
+        ModbusConnection connection,
+        CancellationToken ct
+    )
     {
         // 1. Если соединение есть и клиент подключен — возвращаем мастера
-        if (_connections.TryGetValue(device.Id, out var conn))
+        if (_connections.TryGetValue(connection.Id, out var conn))
         {
             if (conn.Client.Connected)
                 return conn.Master;
 
             // Если сокет мертв — чистим, чтобы попробовать переподключиться
-            InvalidateConnection(device.Id);
+            InvalidateConnection(connection.Id);
         }
 
         // 2. Создаем новое подключение через драйвер
-        _logger.Debug("Establishing connection to {Name} ({IP})...", device.Name, device.IpAddress);
-        var newConn = await modbusDriver.ConnectAsync(device.IpAddress, device.Port, ct);
+        _logger.Debug(
+            "Establishing connection {Id} ({IP}:{Port})...",
+            connection.Id,
+            connection.IpAddress,
+            connection.Port
+        );
+        var newConn = await modbusDriver.ConnectAsync(connection.IpAddress, connection.Port, ct);
 
         if (newConn == null)
             return null;
 
         // 3. Сохраняем в пул
-        _connections[device.Id] = newConn.Value;
+        _connections[connection.Id] = newConn.Value;
         return newConn.Value.Master;
     }
 
     /// <inheritdoc />
-    public void InvalidateConnection(int deviceId)
+    public void InvalidateConnection(int connectionId)
     {
-        if (_connections.TryRemove(deviceId, out var conn))
+        if (_connections.TryRemove(connectionId, out var conn))
         {
             try
             {
@@ -61,7 +75,7 @@ public class DeviceService(IModbusService modbusDriver) : IDeviceService, IDispo
             {
                 // Игнорируем ошибки при закрытии уже закрытого сокета
             }
-            _logger.Debug("Connection for Device {Id} invalidated", deviceId);
+            _logger.Debug("Connection {Id} invalidated", connectionId);
         }
     }
 
@@ -90,6 +104,11 @@ public class DeviceService(IModbusService modbusDriver) : IDeviceService, IDispo
                 }
             }
             _connections.Clear();
+
+            foreach (var sem in _locks.Values)
+                sem.Dispose();
+            _locks.Clear();
+
             _logger.Debug("Disposing DeviceService and connections.");
         }
     }

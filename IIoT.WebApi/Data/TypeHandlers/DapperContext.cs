@@ -38,18 +38,20 @@ public class DapperContext
             // Настройка нативного маппинга энумов Postgres <-> C#
             // Это решает проблему Error parsing column (String -> Enum)
             var translator = new UpperSnakeCaseNameTranslator();
-            builder.MapEnum<SensorDataType>("sensor_data_type", translator);
+            builder.MapEnum<TagDataType>("tag_data_type", translator);
             builder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
+            builder.MapEnum<ModbusEndianness>("modbus_endianness", translator);
             builder.MapEnum<ServiceStatus>("system_service_status", translator);
 
             DataSource = builder.Build();
 
             // Регистрация хендлеров Dapper для сложных типов (JSON)
-            SqlMapper.AddTypeHandler(typeof(SensorUiConfig), new JsonbTypeHandler());
-            
+            SqlMapper.AddTypeHandler(typeof(TagUiConfig), new JsonbTypeHandler());
+
             // Хендлеры для энумов, чтобы Dapper не отправлял их как int
-            SqlMapper.AddTypeHandler(typeof(SensorDataType), new EnumTypeHandler<SensorDataType>());
+            SqlMapper.AddTypeHandler(typeof(TagDataType), new EnumTypeHandler<TagDataType>());
             SqlMapper.AddTypeHandler(typeof(ModbusRegisterType), new EnumTypeHandler<ModbusRegisterType>());
+            SqlMapper.AddTypeHandler(typeof(ModbusEndianness), new EnumTypeHandler<ModbusEndianness>());
             SqlMapper.AddTypeHandler(typeof(ServiceStatus), new EnumTypeHandler<ServiceStatus>());
 
             _logger.Information(

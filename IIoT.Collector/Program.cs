@@ -21,7 +21,7 @@ try
     Log.Information("Starting IIoT.Collector...");
 
     DefaultTypeMap.MatchNamesWithUnderscores = true;
-    SqlMapper.AddTypeHandler(new JsonTypeHandler<SensorUiConfig>());
+    SqlMapper.AddTypeHandler(new JsonTypeHandler<TagUiConfig>());
 
     // Создание билдера хоста (Generic Host)
     var builder = Host.CreateApplicationBuilder(args);
@@ -32,8 +32,9 @@ try
         ?? throw new InvalidOperationException("Connection string 'ADAMDB' not found.");
     var translator = new CollectorNameTranslator();
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connStr);
-    dataSourceBuilder.MapEnum<SensorDataType>("sensor_data_type", translator);
+    dataSourceBuilder.MapEnum<TagDataType>("tag_data_type", translator);
     dataSourceBuilder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
+    dataSourceBuilder.MapEnum<ModbusEndianness>("modbus_endianness", translator);
     dataSourceBuilder.MapEnum<ServiceStatus>("system_service_status", translator);
     var dataSource = dataSourceBuilder.Build();
     builder.Services.AddSingleton(dataSource);

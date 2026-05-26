@@ -30,7 +30,7 @@ public class DevicesController(
         [FromQuery] int? limit
     )
     {
-        var devices = await _repository.GetDevicesWithSensorsAsync(limit);
+        var devices = await _repository.GetDevicesWithTagsAsync(limit);
         return Ok(devices);
     }
 
@@ -42,7 +42,7 @@ public class DevicesController(
     [HttpGet("{id}")]
     public async Task<ActionResult<Device>> GetById(int id)
     {
-        var device = await _repository.GetDeviceByIdWithSensorsAsync(id);
+        var device = await _repository.GetDeviceByIdWithTagsAsync(id);
 
         if (device is null)
         {
@@ -63,9 +63,10 @@ public class DevicesController(
         var device = new Device
         {
             Name = dto.Name,
-            IpAddress = dto.IpAddress,
-            Port = dto.Port,
+            ConnectionId = dto.ConnectionId,
             SlaveId = dto.SlaveId,
+            UseGroupPolling = dto.UseGroupPolling,
+            MaxRegisterSpan = dto.MaxRegisterSpan,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
         };
@@ -85,7 +86,7 @@ public class DevicesController(
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, UpdateDeviceDto dto)
     {
-        var existingDevice = await _repository.GetDeviceByIdWithSensorsAsync(id);
+        var existingDevice = await _repository.GetDeviceByIdWithTagsAsync(id);
         if (existingDevice is null)
         {
             return NotFound($"Устройство с ID {id} не найдено");
@@ -94,9 +95,10 @@ public class DevicesController(
         var updatedDevice = existingDevice with
         {
             Name = dto.Name,
-            IpAddress = dto.IpAddress,
-            Port = dto.Port,
+            ConnectionId = dto.ConnectionId,
             SlaveId = dto.SlaveId,
+            UseGroupPolling = dto.UseGroupPolling,
+            MaxRegisterSpan = dto.MaxRegisterSpan,
             IsActive = dto.IsActive,
         };
 
@@ -114,7 +116,7 @@ public class DevicesController(
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var existingDevice = await _repository.GetDeviceByIdWithSensorsAsync(id);
+        var existingDevice = await _repository.GetDeviceByIdWithTagsAsync(id);
         if (existingDevice is null)
         {
             return NotFound($"Устройство с ID {id} не найдено");

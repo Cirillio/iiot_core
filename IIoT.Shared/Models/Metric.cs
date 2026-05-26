@@ -13,10 +13,10 @@ public record Metric
     public DateTime Time { get; init; }
 
     /// <summary>
-    /// Идентификатор датчика, к которому относится измерение.
-    /// Внешний ключ на таблицу 'sensors'.
+    /// Идентификатор тега, к которому относится измерение.
+    /// Внешний ключ на таблицу 'tags'.
     /// </summary>
-    public int SensorId { get; init; }
+    public int TagId { get; init; }
 
     /// <summary>
     /// "Сырое" значение, полученное напрямую с устройства (до калибровки).

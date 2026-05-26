@@ -1,10 +1,10 @@
 namespace IIoT.Shared.Models;
 
 /// <summary>
-/// Настройки визуализации датчика в пользовательском интерфейсе (Web/Mobile).
+/// Настройки визуализации тега в пользовательском интерфейсе (Web/Mobile).
 /// Хранится в БД как JSONB.
 /// </summary>
-public record SensorUiConfig
+public record TagUiConfig
 {
     /// <summary>
     /// HEX-код цвета для графиков и индикаторов (напр. "#FF5733").
@@ -32,12 +32,12 @@ public record SensorUiConfig
     public double? MaxCritical { get; init; }
 
     /// <summary>
-    /// Предупредительный порог для дискретных датчиков.
+    /// Предупредительный порог для дискретных тегов.
     /// </summary>
     public double? DigitalWarning { get; init; }
 
     /// <summary>
-    /// Критический порог для дискретных датчиков.
+    /// Критический порог для дискретных тегов.
     /// </summary>
     public double? DigitalCritical { get; init; }
 

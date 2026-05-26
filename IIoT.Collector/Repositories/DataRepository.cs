@@ -40,14 +40,14 @@ public class DataRepository : IDataRepository
 
             // COPY protocol - прямой поток бинарных данных в таблицу
             using var writer = await conn.BeginBinaryImportAsync(
-                "COPY metrics (time, sensor_id, raw_value, value) FROM STDIN (FORMAT BINARY)"
+                "COPY metrics (time, tag_id, raw_value, value) FROM STDIN (FORMAT BINARY)"
             );
 
             foreach (var m in metricsList)
             {
                 await writer.StartRowAsync();
                 await writer.WriteAsync(m.Time, NpgsqlDbType.TimestampTz);
-                await writer.WriteAsync(m.SensorId, NpgsqlDbType.Integer);
+                await writer.WriteAsync(m.TagId, NpgsqlDbType.Integer);
 
                 // RawValue может быть NULL
                 if (m.RawValue.HasValue)
@@ -95,7 +95,13 @@ public class DataRepository : IDataRepository
                 new
                 {
                     status.ServiceName,
-                    Status = System.Text.RegularExpressions.Regex.Replace(status.Status.ToString(), "(?<!^)([A-Z])", "_$1").ToUpper(),
+                    Status = System
+                        .Text.RegularExpressions.Regex.Replace(
+                            status.Status.ToString(),
+                            "(?<!^)([A-Z])",
+                            "_$1"
+                        )
+                        .ToUpper(),
                     status.UptimeSeconds,
                     status.LastError,
                     status.LastSync,
@@ -113,7 +119,7 @@ public class DataRepository : IDataRepository
     {
         const string sql =
             @"
-            SELECT id, name, ip_address, port, slave_id, is_active, created_at
+            SELECT id, name, connection_id, slave_id, use_group_polling, max_register_span, is_active, created_at
             FROM devices
             WHERE is_active = true";
 
@@ -130,39 +136,60 @@ public class DataRepository : IDataRepository
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<SensorSettings>> GetSensorSettingsAsync()
+    public async Task<IEnumerable<ModbusConnection>> GetConnectionsAsync()
     {
         const string sql =
             @"
-            SELECT 
-                sensor_id, 
-                device_id, 
-                port_number, 
-                name, 
-                slug, 
+            SELECT id, ip_address, port, description
+            FROM modbus_connections";
+
+        try
+        {
+            await using var conn = await CreateConnection();
+            return await conn.QueryAsync<ModbusConnection>(sql);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to load modbus connections from DB");
+            return [];
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<TagSettings>> GetTagSettingsAsync()
+    {
+        const string sql =
+            @"
+            SELECT
+                tag_id,
+                device_id,
+                port_number,
+                name,
+                slug,
                 data_type,
                 register_address,
                 register_type,
                 register_count,
-                unit, 
-                input_min, input_max, 
-                output_min, output_max, 
-                offset_val, 
-                formula, 
+                endianness,
+                unit,
+                input_min, input_max,
+                output_min, output_max,
+                offset_val,
+                formula,
                 ui_config as UiConfigJson,
                 updated_at
-            FROM sensor_settings
+            FROM tags
             WHERE device_id IS NOT NULL";
 
         try
         {
             await using var conn = await CreateConnection();
-            var settings = await conn.QueryAsync<SensorSettings>(sql);
+            var settings = await conn.QueryAsync<TagSettings>(sql);
             return settings;
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to load sensor settings from DB");
+            _logger.Error(ex, "Failed to load tag settings from DB");
             return [];
         }
     }
@@ -179,7 +206,6 @@ public class DataRepository : IDataRepository
                   polling_interval_ms,
                   config_reload_interval_sec,
                   health_check_interval_sec,
-                  COALESCE(ui_update_interval_ms, 2000) as UiUpdateIntervalMs,
                   COALESCE(deadband_threshold, 0.01) as DeadbandThreshold,
                   COALESCE(data_heartbeat_sec, 600) as DataHeartbeatSec,
                   updated_at

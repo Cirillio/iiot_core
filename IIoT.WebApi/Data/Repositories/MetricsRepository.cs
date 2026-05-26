@@ -18,7 +18,7 @@ public class MetricsRepository(DapperContext context) : IMetricsRepository
     /// Данные возвращаются в виде массива массивов [UnixTimestamp_ms, Value], что идеально подходит для ECharts.
     /// </remarks>
     public async Task<IEnumerable<object[]>> GetHistoryAsync(
-        int sensorId,
+        int tagId,
         DateTime from,
         DateTime to
     )
@@ -28,11 +28,11 @@ public class MetricsRepository(DapperContext context) : IMetricsRepository
 
         string sql =
             $@"
-            SELECT time, value 
-            FROM {tableName} 
-            WHERE sensor_id = @SensorId 
-              AND time >= @From 
-              AND time <= @To 
+            SELECT time, value
+            FROM {tableName}
+            WHERE tag_id = @TagId
+              AND time >= @From
+              AND time <= @To
             ORDER BY time ASC";
 
         using var connection = _context.CreateConnection();
@@ -40,7 +40,7 @@ public class MetricsRepository(DapperContext context) : IMetricsRepository
             sql,
             new
             {
-                SensorId = sensorId,
+                TagId = tagId,
                 From = from,
                 To = to,
             }

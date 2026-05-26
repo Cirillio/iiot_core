@@ -30,10 +30,11 @@ public class ModbusWorker(
 
     // Локальный кэш конфигурации
     private List<Device> _devices = [];
-    private Dictionary<int, List<SensorSettings>> _sensorCache = [];
+    private Dictionary<int, List<TagSettings>> _tagCache = [];
+    private Dictionary<int, ModbusConnection> _connectionsById = [];
 
     // Кэш последних сохраненных значений для реализации Deadband (пороговой записи)
-    // Key: SensorId, Value: (Value, Timestamp)
+    // Key: TagId, Value: (Value, Timestamp)
     private readonly ConcurrentDictionary<int, (double Value, DateTime Time)> _lastSavedValues =
         new();
 
@@ -270,23 +271,37 @@ public class ModbusWorker(
         CancellationToken ct
     )
     {
+        // Резолвим физическое соединение устройства
+        if (!_connectionsById.TryGetValue(device.ConnectionId, out var connection))
+        {
+            logger.LogWarning(
+                "Device {Name}: connection {ConnId} not found in config",
+                device.Name,
+                device.ConnectionId
+            );
+            return (false, []);
+        }
+
+        if (!_tagCache.TryGetValue(device.Id, out var tags))
+            return (true, []);
+
+        // Сериализуем доступ к TCP-сессии: устройства за одним шлюзом опрашиваются по очереди
+        var gate = deviceService.GetLock(device.ConnectionId);
+        await gate.WaitAsync(ct);
         try
         {
-            // Получаем соединение из пула
-            var master = await deviceService.GetConnectionAsync(device, ct);
+            // Получаем соединение из пула (по ConnectionId)
+            var master = await deviceService.GetConnectionAsync(connection, ct);
             if (master == null)
                 return (false, []);
-
-            if (!_sensorCache.TryGetValue(device.Id, out var sensors))
-                return (true, []);
 
             var allMetrics = new List<Metric>();
 
             // Опрашиваем каждую группу регистров
             foreach (var registerType in Enum.GetValues<ModbusRegisterType>())
             {
-                var sensorsOfType = sensors.Where(s => s.RegisterType == registerType).ToList();
-                if (sensorsOfType.Count == 0)
+                var tagsOfType = tags.Where(s => s.RegisterType == registerType).ToList();
+                if (tagsOfType.Count == 0)
                     continue;
 
                 try
@@ -294,12 +309,14 @@ public class ModbusWorker(
                     var rawData = await modbusDriver.ReadRegistersAsync(
                         master,
                         (byte)device.SlaveId,
-                        sensorsOfType,
+                        tagsOfType,
                         registerType,
+                        device.MaxRegisterSpan,
+                        device.UseGroupPolling,
                         ct
                     );
 
-                    allMetrics.AddRange(processService.Process(rawData, sensors));
+                    allMetrics.AddRange(processService.Process(rawData, tags));
                 }
                 catch (Exception ex)
                 {
@@ -316,11 +333,11 @@ public class ModbusWorker(
             var filteredMetrics = new List<Metric>();
             foreach (var m in allMetrics)
             {
-                var setting = sensors.FirstOrDefault(s => s.SensorId == m.SensorId);
+                var setting = tags.FirstOrDefault(s => s.TagId == m.TagId);
                 if (setting != null && ShouldSaveMetric(m, setting))
                 {
                     filteredMetrics.Add(m);
-                    _lastSavedValues[m.SensorId] = (m.Value, m.Time);
+                    _lastSavedValues[m.TagId] = (m.Value, m.Time);
                 }
             }
 
@@ -339,8 +356,12 @@ public class ModbusWorker(
         {
             logger.LogWarning("Device {Name}: {Msg}", device.Name, ex.Message);
             // Сбрасываем соединение при ошибке ввода-вывода
-            deviceService.InvalidateConnection(device.Id);
+            deviceService.InvalidateConnection(device.ConnectionId);
             return (false, []);
+        }
+        finally
+        {
+            gate.Release();
         }
     }
 
@@ -400,25 +421,25 @@ public class ModbusWorker(
     /// Логика Deadband (Зоны нечувствительности).
     /// Определяет, нужно ли сохранять метрику или она не изменилась достаточно сильно.
     /// </summary>
-    private bool ShouldSaveMetric(Metric m, SensorSettings s)
+    private bool ShouldSaveMetric(Metric m, TagSettings s)
     {
         // Если первое значение - сохраняем всегда
-        if (!_lastSavedValues.TryGetValue(m.SensorId, out var last))
+        if (!_lastSavedValues.TryGetValue(m.TagId, out var last))
         {
-            logger.LogDebug("Sensor {Id}: First value, saving.", m.SensorId);
+            logger.LogDebug("Tag {Id}: First value, saving.", m.TagId);
             return true;
         }
 
         // Если прошло много времени (Heartbeat данных) - сохраняем принудительно
         if ((m.Time - last.Time).TotalSeconds >= _currentConfig.DataHeartbeatSec)
         {
-            logger.LogDebug("Sensor {Id}: Heartbeat timeout, forcing save.", m.SensorId);
+            logger.LogDebug("Tag {Id}: Heartbeat timeout, forcing save.", m.TagId);
             return true;
         }
 
-        if (s.DataType == SensorDataType.Analog)
+        if (s.DataType == TagDataType.Analog)
         {
-            // Проверка изменения на % от диапазона датчика
+            // Проверка изменения на % от диапазона тега
             var delta = Math.Abs(m.Value - last.Value);
             var range = Math.Abs(s.OutputMax - s.OutputMin);
             if (range < 0.0001)
@@ -430,8 +451,8 @@ public class ModbusWorker(
             if (!shouldSave)
             {
                 logger.LogTrace(
-                    "Sensor {Id}: Delta {Delta} <= Threshold {Thr}, skipping.",
-                    m.SensorId,
+                    "Tag {Id}: Delta {Delta} <= Threshold {Thr}, skipping.",
+                    m.TagId,
                     delta,
                     threshold
                 );
@@ -440,13 +461,13 @@ public class ModbusWorker(
             return shouldSave;
         }
 
-        if (s.DataType == SensorDataType.Digital)
+        if (s.DataType == TagDataType.Digital)
         {
             // Для дискретных сохраняем только изменение состояния (0->1 или 1->0)
             var changed = Math.Abs(m.Value - last.Value) > 0.5;
             if (!changed)
             {
-                logger.LogTrace("Sensor {Id}: State not changed, skipping.", m.SensorId);
+                logger.LogTrace("Tag {Id}: State not changed, skipping.", m.TagId);
             }
             return changed;
         }
@@ -559,27 +580,30 @@ public class ModbusWorker(
         _currentConfig = await repository.GetSystemConfigAsync();
         _devices = [.. await repository.GetActiveDevicesAsync()];
 
-        var allSensors = await repository.GetSensorSettingsAsync();
-        // Группируем датчики по DeviceId для быстрого доступа в цикле опроса
-        _sensorCache = allSensors
+        var connections = await repository.GetConnectionsAsync();
+        _connectionsById = connections.ToDictionary(c => c.Id);
+
+        var allTags = await repository.GetTagSettingsAsync();
+        // Группируем теги по DeviceId для быстрого доступа в цикле опроса
+        _tagCache = allTags
             .Where(s => s.DeviceId.HasValue)
             .GroupBy(s => s.DeviceId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var device in _devices)
         {
-            if (_sensorCache.TryGetValue(device.Id, out var sensors))
+            if (_tagCache.TryGetValue(device.Id, out var tags))
             {
                 logger.LogInformation(
-                    "Loaded {Count} sensors for device {Name}",
-                    sensors.Count,
+                    "Loaded {Count} tags for device {Name}",
+                    tags.Count,
                     device.Name
                 );
-                foreach (var s in sensors)
+                foreach (var s in tags)
                 {
                     logger.LogInformation(
-                        " - Sensor {Id}: Port {Port} ({Type})",
-                        s.SensorId,
+                        " - Tag {Id}: Port {Port} ({Type})",
+                        s.TagId,
                         s.PortNumber,
                         s.DataType
                     );

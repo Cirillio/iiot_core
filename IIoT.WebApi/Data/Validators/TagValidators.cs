@@ -4,9 +4,9 @@ using IIoT.WebApi.Data.DTO;
 
 namespace IIoT.WebApi.Data.Validators;
 
-public class CreateSensorDtoValidator : AbstractValidator<CreateSensorDto>
+public class CreateTagDtoValidator : AbstractValidator<CreateTagDto>
 {
-    public CreateSensorDtoValidator()
+    public CreateTagDtoValidator()
     {
         RuleFor(x => x.DeviceId).GreaterThan(0).WithMessage("DeviceId должен быть больше 0");
 
@@ -25,7 +25,7 @@ public class CreateSensorDtoValidator : AbstractValidator<CreateSensorDto>
             .WithMessage("Slug может содержать только строчные буквы, цифры и подчеркивания");
 
         RuleFor(x => x.DataType)
-            .Must(x => Enum.TryParse<SensorDataType>(x, true, out _))
+            .Must(x => Enum.TryParse<TagDataType>(x, true, out _))
             .WithMessage("Недопустимый тип данных. Допустимые значения: ANALOG, DIGITAL, VIRTUAL");
 
         RuleFor(x => x.PortNumber)
@@ -34,9 +34,9 @@ public class CreateSensorDtoValidator : AbstractValidator<CreateSensorDto>
     }
 }
 
-public class UpdateSensorDtoValidator : AbstractValidator<UpdateSensorDto>
+public class UpdateTagDtoValidator : AbstractValidator<UpdateTagDto>
 {
-    public UpdateSensorDtoValidator()
+    public UpdateTagDtoValidator()
     {
         RuleFor(x => x.Name)
             .NotEmpty()
@@ -53,7 +53,7 @@ public class UpdateSensorDtoValidator : AbstractValidator<UpdateSensorDto>
             .WithMessage("Slug может содержать только строчные буквы, цифры и подчеркивания");
 
         RuleFor(x => x.DataType)
-            .Must(x => Enum.TryParse<SensorDataType>(x, true, out _))
+            .Must(x => Enum.TryParse<TagDataType>(x, true, out _))
             .WithMessage("Недопустимый тип данных. Допустимые значения: ANALOG, DIGITAL, VIRTUAL");
 
         RuleFor(x => x.PortNumber)

@@ -12,13 +12,13 @@ namespace IIoT.WebApi.Controllers;
 /// Контроллер для управления датчиками (настройки, калибровка, привязка к портам).
 /// </summary>
 [ApiController]
-[Route("api/sensors")]
-public class SensorsController(
-    ISensorRepository repository,
+[Route("api/tags")]
+public class TagsController(
+    ITagRepository repository,
     IHubContext<MonitoringHub, IMonitoringClient> hubContext
 ) : ControllerBase
 {
-    private readonly ISensorRepository _repository = repository;
+    private readonly ITagRepository _repository = repository;
     private readonly IHubContext<MonitoringHub, IMonitoringClient> _hubContext = hubContext;
 
     /// <summary>
@@ -26,10 +26,10 @@ public class SensorsController(
     /// </summary>
     /// <returns>Список настроек датчиков.</returns>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<SensorSettings>>> GetAll()
+    public async Task<ActionResult<IEnumerable<TagSettings>>> GetAll()
     {
-        var sensors = await _repository.GetAllAsync();
-        return Ok(sensors);
+        var tags = await _repository.GetAllAsync();
+        return Ok(tags);
     }
 
     /// <summary>
@@ -38,13 +38,13 @@ public class SensorsController(
     /// <param name="id">Уникальный ID датчика.</param>
     /// <returns>Настройки датчика.</returns>
     [HttpGet("{id}")]
-    public async Task<ActionResult<SensorSettings>> GetById(int id)
+    public async Task<ActionResult<TagSettings>> GetById(int id)
     {
-        var sensor = await _repository.GetByIdAsync(id);
-        if (sensor == null)
+        var tag = await _repository.GetByIdAsync(id);
+        if (tag == null)
             return NotFound($"Датчик с ID {id} не найден");
 
-        return Ok(sensor);
+        return Ok(tag);
     }
 
     /// <summary>
@@ -53,10 +53,10 @@ public class SensorsController(
     /// <param name="deviceId">ID устройства.</param>
     /// <returns>Список датчиков устройства.</returns>
     [HttpGet("device/{deviceId}")]
-    public async Task<ActionResult<IEnumerable<SensorSettings>>> GetByDeviceId(int deviceId)
+    public async Task<ActionResult<IEnumerable<TagSettings>>> GetByDeviceId(int deviceId)
     {
-        var sensors = await _repository.GetByDeviceIdAsync(deviceId);
-        return Ok(sensors);
+        var tags = await _repository.GetByDeviceIdAsync(deviceId);
+        return Ok(tags);
     }
 
     /// <summary>
@@ -65,9 +65,9 @@ public class SensorsController(
     /// <param name="dto">Данные нового датчика.</param>
     /// <returns>ID созданного датчика.</returns>
     [HttpPost]
-    public async Task<ActionResult<int>> Create(CreateSensorDto dto)
+    public async Task<ActionResult<int>> Create(CreateTagDto dto)
     {
-        if (!Enum.TryParse<SensorDataType>(dto.DataType, true, out var dataType))
+        if (!Enum.TryParse<TagDataType>(dto.DataType, true, out var dataType))
         {
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
@@ -77,11 +77,16 @@ public class SensorsController(
             return BadRequest($"Недопустимый тип регистра: {dto.RegisterType}");
         }
 
-        var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
-            ? new SensorUiConfig()
-            : JsonSerializer.Deserialize<SensorUiConfig>(dto.UiConfig) ?? new SensorUiConfig();
+        if (!TryParseEndianness(dto.Endianness, out var endianness))
+        {
+            return BadRequest($"Недопустимый порядок байт: {dto.Endianness}");
+        }
 
-        var sensor = new SensorSettings
+        var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
+            ? new TagUiConfig()
+            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
+
+        var tag = new TagSettings
         {
             DeviceId = dto.DeviceId,
             PortNumber = dto.PortNumber,
@@ -91,6 +96,7 @@ public class SensorsController(
             RegisterAddress = dto.RegisterAddress,
             RegisterType = regType,
             RegisterCount = dto.RegisterCount,
+            Endianness = endianness,
             Unit = dto.Unit,
             InputMin = dto.InputMin,
             InputMax = dto.InputMax,
@@ -102,10 +108,10 @@ public class SensorsController(
             UpdatedAt = DateTime.UtcNow,
         };
 
-        var id = await _repository.AddAsync(sensor);
+        var id = await _repository.AddAsync(tag);
 
         // Оповещение об изменении конфигурации
-        await _hubContext.Clients.All.ConfigUpdated("SENSOR", id);
+        await _hubContext.Clients.All.ConfigUpdated("TAG", id);
 
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
@@ -116,13 +122,13 @@ public class SensorsController(
     /// <param name="id">ID датчика.</param>
     /// <param name="dto">Обновленные данные.</param>
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, UpdateSensorDto dto)
+    public async Task<IActionResult> Update(int id, UpdateTagDto dto)
     {
         var existing = await _repository.GetByIdAsync(id);
         if (existing == null)
             return NotFound($"Датчик с ID {id} не найден");
 
-        if (!Enum.TryParse<SensorDataType>(dto.DataType, true, out var dataType))
+        if (!Enum.TryParse<TagDataType>(dto.DataType, true, out var dataType))
         {
             return BadRequest($"Недопустимый тип данных: {dto.DataType}");
         }
@@ -132,9 +138,14 @@ public class SensorsController(
             return BadRequest($"Недопустимый тип регистра: {dto.RegisterType}");
         }
 
+        if (!TryParseEndianness(dto.Endianness, out var endianness))
+        {
+            return BadRequest($"Недопустимый порядок байт: {dto.Endianness}");
+        }
+
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
-            ? new SensorUiConfig()
-            : JsonSerializer.Deserialize<SensorUiConfig>(dto.UiConfig) ?? new SensorUiConfig();
+            ? new TagUiConfig()
+            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
 
         var updated = existing with
         {
@@ -145,6 +156,7 @@ public class SensorsController(
             RegisterAddress = dto.RegisterAddress,
             RegisterType = regType,
             RegisterCount = dto.RegisterCount,
+            Endianness = endianness,
             Unit = dto.Unit,
             InputMin = dto.InputMin,
             InputMax = dto.InputMax,
@@ -159,7 +171,7 @@ public class SensorsController(
         await _repository.UpdateAsync(updated);
 
         // Оповещение об изменении конфигурации
-        await _hubContext.Clients.All.ConfigUpdated("SENSOR", id);
+        await _hubContext.Clients.All.ConfigUpdated("TAG", id);
 
         return NoContent();
     }
@@ -178,8 +190,23 @@ public class SensorsController(
         await _repository.DeleteAsync(id);
 
         // Оповещение об изменении конфигурации
-        await _hubContext.Clients.All.ConfigUpdated("SENSOR", id);
+        await _hubContext.Clients.All.ConfigUpdated("TAG", id);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Парсит порядок байт из строки. Пустое значение → BigEndian (дефолт).
+    /// Принимает как "WORD_SWAP", так и "WordSwap" (подчёркивания игнорируются).
+    /// </summary>
+    private static bool TryParseEndianness(string? raw, out ModbusEndianness endianness)
+    {
+        if (string.IsNullOrEmpty(raw))
+        {
+            endianness = ModbusEndianness.BigEndian;
+            return true;
+        }
+
+        return Enum.TryParse(raw.Replace("_", ""), true, out endianness);
     }
 }

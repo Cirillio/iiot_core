@@ -34,7 +34,6 @@ public class SystemRepository(DapperContext context) : ISystemRepository
                 polling_interval_ms = @PollingIntervalMs,
                 config_reload_interval_sec = @ConfigReloadIntervalSec,
                 health_check_interval_sec = @HealthCheckIntervalSec,
-                ui_update_interval_ms = @UiUpdateIntervalMs,
                 deadband_threshold = @DeadbandThreshold,
                 data_heartbeat_sec = @DataHeartbeatSec,
                 updated_at = NOW()

@@ -11,16 +11,16 @@ public interface IDeviceRepository
     /// <summary>
     /// Получить список всех устройств вместе с их датчиками в формате DTO для дашборда.
     /// </summary>
-    /// <param name="sensorLimit">Максимальное количество датчиков для каждого устройства (для превью).</param>
+    /// <param name="tagLimit">Максимальное количество датчиков для каждого устройства (для превью).</param>
     /// <returns>Коллекция DTO устройств.</returns>
-    Task<IEnumerable<DashboardDeviceDTO>> GetDevicesWithSensorsAsync(int? sensorLimit = null);
+    Task<IEnumerable<DashboardDeviceDTO>> GetDevicesWithTagsAsync(int? tagLimit = null);
 
     /// <summary>
     /// Получить полную информацию об устройстве и его датчиках по ID.
     /// </summary>
     /// <param name="_deviceId">Идентификатор устройства.</param>
     /// <returns>Объект Device или null, если не найден.</returns>
-    Task<Device?> GetDeviceByIdWithSensorsAsync(int _deviceId);
+    Task<Device?> GetDeviceByIdWithTagsAsync(int _deviceId);
 
     /// <summary>
     /// Добавить новое устройство в систему.

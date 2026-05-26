@@ -46,29 +46,31 @@ public class ModbusService : IModbusService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<(int SensorId, ushort[] RawValues)>> ReadRegistersAsync(
+    public async Task<IEnumerable<(int TagId, ushort[] RawValues)>> ReadRegistersAsync(
         IModbusMaster master,
         byte slaveId,
-        IEnumerable<SensorSettings> sensors,
+        IEnumerable<TagSettings> tags,
         ModbusRegisterType registerType,
+        int maxRegisterSpan,
+        bool useGroupPolling,
         CancellationToken ct
     )
     {
-        var allSensors = sensors
-            .Where(s => s.RegisterType == registerType)
+        var allTags = tags.Where(s => s.RegisterType == registerType)
             .OrderBy(s => s.RegisterAddress)
             .ToList();
 
-        if (allSensors.Count == 0) return [];
+        if (allTags.Count == 0)
+            return [];
 
-        var result = new List<(int SensorId, ushort[] RawValues)>();
-        var chunks = CreateChunks(allSensors, 120);
+        var result = new List<(int TagId, ushort[] RawValues)>();
+        var chunks = CreateChunks(allTags, maxRegisterSpan, useGroupPolling);
 
         foreach (var chunk in chunks)
         {
             var minAddr = (ushort)chunk[0].RegisterAddress;
-            var maxSensor = chunk.MaxBy(s => s.RegisterAddress + s.RegisterCount - 1);
-            var maxAddr = (ushort)(maxSensor!.RegisterAddress + maxSensor.RegisterCount - 1);
+            var maxTag = chunk.MaxBy(s => s.RegisterAddress + s.RegisterCount - 1);
+            var maxAddr = (ushort)(maxTag!.RegisterAddress + maxTag.RegisterCount - 1);
             var count = (ushort)(maxAddr - minAddr + 1);
 
             try
@@ -91,7 +93,9 @@ public class ModbusService : IModbusService
                         data = coils.Select(b => (ushort)(b ? 1 : 0)).ToArray();
                         break;
                     default:
-                        throw new NotSupportedException($"Register type {registerType} not supported");
+                        throw new NotSupportedException(
+                            $"Register type {registerType} not supported"
+                        );
                 }
 
                 foreach (var s in chunk)
@@ -99,13 +103,19 @@ public class ModbusService : IModbusService
                     var offset = s.RegisterAddress - minAddr;
                     var values = new ushort[s.RegisterCount];
                     Array.Copy(data, offset, values, 0, s.RegisterCount);
-                    result.Add((s.SensorId, values));
+                    result.Add((s.TagId, values));
                 }
             }
             catch (Exception ex)
             {
-                _logger.Warning("Failed to read chunk {Min}-{Max} ({Type}) from slave {Id}: {Msg}", 
-                    minAddr, maxAddr, registerType, slaveId, ex.Message);
+                _logger.Warning(
+                    "Failed to read chunk {Min}-{Max} ({Type}) from slave {Id}: {Msg}",
+                    minAddr,
+                    maxAddr,
+                    registerType,
+                    slaveId,
+                    ex.Message
+                );
                 // Пропускаем этот чанк, но продолжаем опрос других
             }
         }
@@ -114,29 +124,48 @@ public class ModbusService : IModbusService
     }
 
     /// <summary>
-    /// Группирует сенсоры в чанки, где расстояние между регистрами не превышает maxSpan.
+    /// Группирует теги в чанки для чтения.
+    /// useGroupPolling=false — каждый тег в собственном чанке (точечные индивидуальные запросы).
+    /// useGroupPolling=true — смежные теги объединяются, пока ширина чанка (от первого адреса
+    /// до конца текущего тега) не превышает maxRegisterSpan.
     /// </summary>
-    private static List<List<SensorSettings>> CreateChunks(List<SensorSettings> sensors, int maxSpan)
+    private static List<List<TagSettings>> CreateChunks(
+        List<TagSettings> tags,
+        int maxRegisterSpan,
+        bool useGroupPolling
+    )
     {
-        var chunks = new List<List<SensorSettings>>();
-        if (sensors.Count == 0) return chunks;
+        var chunks = new List<List<TagSettings>>();
+        if (tags.Count == 0)
+            return chunks;
 
-        var currentChunk = new List<SensorSettings> { sensors[0] };
+        // Точечный опрос: один запрос на тег
+        if (!useGroupPolling)
+        {
+            foreach (var t in tags)
+                chunks.Add([t]);
+            return chunks;
+        }
+
+        var currentChunk = new List<TagSettings> { tags[0] };
         chunks.Add(currentChunk);
 
-        for (int i = 1; i < sensors.Count; i++)
+        for (int i = 1; i < tags.Count; i++)
         {
-            var s = sensors[i];
+            var s = tags[i];
             var firstInChunk = currentChunk[0];
-            
-            // Расстояние от начала чанка до конца текущего сенсора
-            if (s.RegisterAddress + s.RegisterCount - firstInChunk.RegisterAddress <= maxSpan)
+
+            // Ширина чанка от начала до конца текущего тега
+            if (
+                s.RegisterAddress + s.RegisterCount - firstInChunk.RegisterAddress
+                <= maxRegisterSpan
+            )
             {
                 currentChunk.Add(s);
             }
             else
             {
-                currentChunk = new List<SensorSettings> { s };
+                currentChunk = new List<TagSettings> { s };
                 chunks.Add(currentChunk);
             }
         }

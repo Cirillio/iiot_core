@@ -18,31 +18,35 @@ public record Device
     /// </summary>
     public string Name { get; init; } = string.Empty;
 
-    public List<SensorSettings> Sensors { get; init; } = [];
+    public List<TagSettings> Tags { get; init; } = [];
 
     /// <summary>
-    /// Общее количество датчиков, подключенных к устройству.
+    /// Общее количество тегов, привязанных к устройству.
     /// </summary>
-    public int TotalSensors { get; init; }
+    public int TotalTags { get; init; }
 
     /// <summary>
-    /// IP-адрес устройства в сети (IPv4).
-    /// Например: "192.168.1.50".
+    /// Идентификатор физического соединения (modbus_connections.id), через которое
+    /// опрашивается устройство. Несколько устройств могут делить одно соединение (шлюз).
     /// </summary>
-    public string IpAddress { get; init; } = string.Empty;
+    public int ConnectionId { get; init; }
 
     /// <summary>
-    /// Порт TCP для подключения по протоколу Modbus.
-    /// Значение по умолчанию: 502 (стандартный порт Modbus TCP).
-    /// </summary>
-    public int Port { get; init; } = 502;
-
-    /// <summary>
-    /// Modbus Unit ID (Slave Address).
-    /// Используется для адресации конкретного устройства на шине или через шлюз.
-    /// Обычно 1 для Modbus TCP, но может варьироваться (1-247).
+    /// Modbus Unit ID (Slave Address). Адресует устройство на шине / через шлюз (1-247).
     /// </summary>
     public int SlaveId { get; init; } = 1;
+
+    /// <summary>
+    /// Включать ли групповой (пакетный) опрос смежных регистров.
+    /// false — каждый тег читается отдельным запросом (для "капризного" оборудования).
+    /// </summary>
+    public bool UseGroupPolling { get; init; } = true;
+
+    /// <summary>
+    /// Максимальный диапазон адресов в одном групповом запросе.
+    /// Ограничивает ширину чанка при группировке.
+    /// </summary>
+    public int MaxRegisterSpan { get; init; } = 120;
 
     /// <summary>
     /// Флаг активности устройства.
