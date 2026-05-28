@@ -119,7 +119,7 @@ public class DataRepository : IDataRepository
     {
         const string sql =
             @"
-            SELECT id, name, connection_id, slave_id, use_group_polling, max_register_span, is_active, created_at
+            SELECT id, name, connection_id, slave_id, use_group_polling, max_register_span, max_bit_span, is_active, created_at
             FROM devices
             WHERE is_active = true";
 
@@ -170,6 +170,7 @@ public class DataRepository : IDataRepository
                 register_address,
                 register_type,
                 register_count,
+                raw_data_type,
                 endianness,
                 unit,
                 input_min, input_max,

@@ -82,6 +82,11 @@ public class TagsController(
             return BadRequest($"Недопустимый порядок байт: {dto.Endianness}");
         }
 
+        if (!TryParseRawDataType(dto.RawDataType, dto.RegisterCount, out var rawDataType))
+        {
+            return BadRequest($"Недопустимый тип данных регистра: {dto.RawDataType}");
+        }
+
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new TagUiConfig()
             : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
@@ -96,6 +101,7 @@ public class TagsController(
             RegisterAddress = dto.RegisterAddress,
             RegisterType = regType,
             RegisterCount = dto.RegisterCount,
+            RawDataType = rawDataType,
             Endianness = endianness,
             Unit = dto.Unit,
             InputMin = dto.InputMin,
@@ -144,6 +150,11 @@ public class TagsController(
             return BadRequest($"Недопустимый порядок байт: {dto.Endianness}");
         }
 
+        if (!TryParseRawDataType(dto.RawDataType, dto.RegisterCount, out var rawDataType))
+        {
+            return BadRequest($"Недопустимый тип данных регистра: {dto.RawDataType}");
+        }
+
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new TagUiConfig()
             : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
@@ -157,6 +168,7 @@ public class TagsController(
             RegisterAddress = dto.RegisterAddress,
             RegisterType = regType,
             RegisterCount = dto.RegisterCount,
+            RawDataType = rawDataType,
             Endianness = endianness,
             Unit = dto.Unit,
             InputMin = dto.InputMin,
@@ -210,5 +222,29 @@ public class TagsController(
         }
 
         return Enum.TryParse(raw.Replace("_", ""), true, out endianness);
+    }
+
+    /// <summary>
+    /// Парсит бинарный тип значения. Пустое значение → вывод из RegisterCount
+    /// (обратная совместимость со старым API: 2 рег → Float32, 4 рег → Float64, иначе UInt16).
+    /// </summary>
+    private static bool TryParseRawDataType(
+        string? raw,
+        int registerCount,
+        out RawDataType rawDataType
+    )
+    {
+        if (string.IsNullOrEmpty(raw))
+        {
+            rawDataType = registerCount switch
+            {
+                2 => RawDataType.Float32,
+                4 => RawDataType.Float64,
+                _ => RawDataType.UInt16,
+            };
+            return true;
+        }
+
+        return Enum.TryParse(raw.Replace("_", ""), true, out rawDataType);
     }
 }

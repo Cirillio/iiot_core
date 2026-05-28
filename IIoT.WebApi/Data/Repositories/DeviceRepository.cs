@@ -121,8 +121,8 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
     {
         var sql =
             @"
-            INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active, created_at)
-            VALUES (@Name, @ConnectionId, @SlaveId, @UseGroupPolling, @MaxRegisterSpan, @IsActive, @CreatedAt)
+            INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, max_bit_span, is_active, created_at)
+            VALUES (@Name, @ConnectionId, @SlaveId, @UseGroupPolling, @MaxRegisterSpan, @MaxBitSpan, @IsActive, @CreatedAt)
             RETURNING id;";
 
         using var connection = _context.CreateConnection();
@@ -140,6 +140,7 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
                 slave_id = @SlaveId,
                 use_group_polling = @UseGroupPolling,
                 max_register_span = @MaxRegisterSpan,
+                max_bit_span = @MaxBitSpan,
                 is_active = @IsActive
             WHERE id = @Id;";
 

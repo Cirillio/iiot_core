@@ -41,6 +41,11 @@ public record TagSettings
     public int RegisterCount { get; init; } = 1;
 
     /// <summary>
+    /// Бинарный тип сырого значения — определяет распаковку байт из регистров.
+    /// </summary>
+    public RawDataType RawDataType { get; init; } = RawDataType.UInt16;
+
+    /// <summary>
     /// Порядок байт/слов для десериализации многорегистровых значений.
     /// </summary>
     public ModbusEndianness Endianness { get; init; } = ModbusEndianness.BigEndian;

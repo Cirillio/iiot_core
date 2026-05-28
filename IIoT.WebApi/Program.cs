@@ -50,6 +50,7 @@ builder.Services.AddScoped<IConnectionRepository, ConnectionRepository>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IMetricsRepository, MetricsRepository>();
 builder.Services.AddScoped<ISystemRepository, SystemRepository>();
+builder.Services.AddScoped<ICommandRepository, CommandRepository>();
 
 // Enable SignalR for real-time communication
 builder.Services.AddSignalR();
@@ -57,6 +58,7 @@ builder.Services.AddSignalR();
 // Register the background service that listens for PostgreSQL NOTIFY events
 builder.Services.AddHostedService<MetricsObserverService>();
 builder.Services.AddHostedService<SystemHealthService>();
+builder.Services.AddHostedService<CommandObserverService>();
 
 // Add CORS policy
 builder.Services.AddCors(options =>
@@ -94,5 +96,6 @@ app.MapControllers();
 
 // Map SignalR hubs
 app.MapHub<MonitoringHub>("/hubs/metrics");
+app.MapHub<ControlHub>("/hubs/control");
 
 app.Run();

@@ -19,6 +19,9 @@ public class CreateDeviceDtoValidator : AbstractValidator<CreateDeviceDto>
 
         RuleFor(x => x.MaxRegisterSpan)
             .InclusiveBetween(1, 2000).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 2000 (для регистров коллектор урежет до 125)");
+
+        RuleFor(x => x.MaxBitSpan)
+            .InclusiveBetween(1, 2000).WithMessage("MaxBitSpan должен быть в диапазоне от 1 до 2000");
     }
 }
 
@@ -38,5 +41,8 @@ public class UpdateDeviceDtoValidator : AbstractValidator<UpdateDeviceDto>
 
         RuleFor(x => x.MaxRegisterSpan)
             .InclusiveBetween(1, 2000).WithMessage("MaxRegisterSpan должен быть в диапазоне от 1 до 2000 (для регистров коллектор урежет до 125)");
+
+        RuleFor(x => x.MaxBitSpan)
+            .InclusiveBetween(1, 2000).WithMessage("MaxBitSpan должен быть в диапазоне от 1 до 2000");
     }
 }
