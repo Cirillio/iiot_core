@@ -18,6 +18,17 @@ public class CollectorNameTranslator : INpgsqlNameTranslator
 }
 
 /// <summary>
+/// Транслятор для enum'ов без разделителя слов: PascalCase → UPPERCASE (Int16 → INT16, UInt16 → UINT16).
+/// Snake-case-регекс здесь не годится: UInt16 → "U_INT16" не совпал бы с меткой 'UINT16'.
+/// </summary>
+public class UpperCaseNameTranslator : INpgsqlNameTranslator
+{
+    public string TranslateMemberName(string clrName) => clrName.ToUpperInvariant();
+
+    public string TranslateTypeName(string clrName) => clrName;
+}
+
+/// <summary>
 /// Обработчик для работы с JSON/JSONB колонками PostgreSQL.
 /// </summary>
 public class JsonTypeHandler<T> : SqlMapper.TypeHandler<T>

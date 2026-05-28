@@ -18,7 +18,7 @@ public class TagRepository(DapperContext context) : ITagRepository
         const string sql = @"
             SELECT 
                 tag_id, device_id, port_number, name, slug, 
-                data_type, register_address, register_type, register_count, endianness,
+                data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
                 offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
@@ -33,7 +33,7 @@ public class TagRepository(DapperContext context) : ITagRepository
         const string sql = @"
             SELECT 
                 tag_id, device_id, port_number, name, slug, 
-                data_type, register_address, register_type, register_count, endianness,
+                data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
                 offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
@@ -51,7 +51,7 @@ public class TagRepository(DapperContext context) : ITagRepository
         const string sql = @"
             SELECT 
                 tag_id, device_id, port_number, name, slug, 
-                data_type, register_address, register_type, register_count, endianness,
+                data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
                 offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
             FROM tags 
@@ -68,12 +68,12 @@ public class TagRepository(DapperContext context) : ITagRepository
             @"
             INSERT INTO tags (
                 device_id, port_number, name, slug, data_type,
-                register_address, register_type, register_count, endianness, unit,
+                register_address, register_type, register_count, raw_data_type, endianness, unit,
                 input_min, input_max, output_min, output_max,
                 offset_val, deadband_threshold, formula, ui_config, updated_at
             ) VALUES (
                 @DeviceId, @PortNumber, @Name, @Slug, @DataTypeStr::tag_data_type,
-                @RegisterAddress, @RegisterTypeStr::modbus_register_type, @RegisterCount, @EndiannessStr::modbus_endianness, @Unit,
+                @RegisterAddress, @RegisterTypeStr::modbus_register_type, @RegisterCount, @RawDataTypeStr::modbus_raw_data_type, @EndiannessStr::modbus_endianness, @Unit,
                 @InputMin, @InputMax, @OutputMin, @OutputMax,
                 @OffsetVal, @DeadbandThreshold, @Formula, @UiConfigJson, @UpdatedAt
             ) RETURNING tag_id";
@@ -89,6 +89,7 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.RegisterAddress,
             RegisterTypeStr = ToSnakeCase(tag.RegisterType.ToString()),
             tag.RegisterCount,
+            RawDataTypeStr = tag.RawDataType.ToString().ToUpperInvariant(),
             EndiannessStr = ToSnakeCase(tag.Endianness.ToString()),
             tag.Unit,
             tag.InputMin,
@@ -117,6 +118,7 @@ public class TagRepository(DapperContext context) : ITagRepository
                 register_address = @RegisterAddress,
                 register_type = @RegisterTypeStr::modbus_register_type,
                 register_count = @RegisterCount,
+                raw_data_type = @RawDataTypeStr::modbus_raw_data_type,
                 endianness = @EndiannessStr::modbus_endianness,
                 unit = @Unit,
                 input_min = @InputMin,
@@ -141,6 +143,7 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.RegisterAddress,
             RegisterTypeStr = ToSnakeCase(tag.RegisterType.ToString()),
             tag.RegisterCount,
+            RawDataTypeStr = tag.RawDataType.ToString().ToUpperInvariant(),
             EndiannessStr = ToSnakeCase(tag.Endianness.ToString()),
             tag.Unit,
             tag.InputMin,

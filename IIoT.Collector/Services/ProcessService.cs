@@ -22,30 +22,40 @@ public class ProcessService : IProcessService
             if (!tagMap.TryGetValue(tagId, out var tag))
                 continue;
 
-            double finalRawValue;
-
-            if (tag.RegisterCount == 2 && rawArray.Length >= 2)
+            // Сколько регистров требует тип; если данных меньше — тег пропускаем.
+            int needed = tag.RawDataType switch
             {
-                finalRawValue = BitConverter.ToSingle(
+                RawDataType.Int16 or RawDataType.UInt16 => 1,
+                RawDataType.Int32 or RawDataType.UInt32 or RawDataType.Float32 => 2,
+                RawDataType.Float64 => 4,
+                _ => 1,
+            };
+
+            if (rawArray.Length < needed)
+                continue;
+
+            double finalRawValue = tag.RawDataType switch
+            {
+                RawDataType.Int16 => (short)rawArray[0],
+                RawDataType.UInt16 => rawArray[0],
+                RawDataType.Int32 => BitConverter.ToInt32(
                     BuildOrderedBytes(rawArray, 2, tag.Endianness),
                     0
-                );
-            }
-            else if (tag.RegisterCount == 4 && rawArray.Length >= 4)
-            {
-                finalRawValue = BitConverter.ToDouble(
+                ),
+                RawDataType.UInt32 => BitConverter.ToUInt32(
+                    BuildOrderedBytes(rawArray, 2, tag.Endianness),
+                    0
+                ),
+                RawDataType.Float32 => BitConverter.ToSingle(
+                    BuildOrderedBytes(rawArray, 2, tag.Endianness),
+                    0
+                ),
+                RawDataType.Float64 => BitConverter.ToDouble(
                     BuildOrderedBytes(rawArray, 4, tag.Endianness),
                     0
-                );
-            }
-            else if (rawArray.Length > 0)
-            {
-                finalRawValue = rawArray[0];
-            }
-            else
-            {
-                continue;
-            }
+                ),
+                _ => rawArray[0],
+            };
 
             yield return new Metric
             {

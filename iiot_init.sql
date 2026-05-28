@@ -22,7 +22,17 @@ EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
 DO $$ BEGIN
+    CREATE TYPE modbus_raw_data_type AS ENUM ('INT16', 'UINT16', 'INT32', 'UINT32', 'FLOAT32', 'FLOAT64');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
     CREATE TYPE system_service_status AS ENUM ('ONLINE', 'OFFLINE', 'DEGRADED', 'CRITICAL_ERROR', 'MAINTENANCE');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE command_status AS ENUM ('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED');
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
@@ -45,6 +55,7 @@ CREATE TABLE IF NOT EXISTS devices (
     slave_id INT NOT NULL DEFAULT 1,
     use_group_polling BOOLEAN NOT NULL DEFAULT TRUE,
     max_register_span SMALLINT NOT NULL DEFAULT 120,
+    max_bit_span SMALLINT NOT NULL DEFAULT 2000,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -59,6 +70,7 @@ CREATE TABLE IF NOT EXISTS tags (
     register_address INTEGER NOT NULL DEFAULT 0,
     register_type modbus_register_type NOT NULL DEFAULT 'INPUT_REGISTER',
     register_count SMALLINT NOT NULL DEFAULT 1,
+    raw_data_type modbus_raw_data_type NOT NULL DEFAULT 'UINT16',
     endianness modbus_endianness NOT NULL DEFAULT 'BIG_ENDIAN',
     unit VARCHAR(20),
     input_min DOUBLE PRECISION DEFAULT 0,
@@ -73,6 +85,24 @@ CREATE TABLE IF NOT EXISTS tags (
     CONSTRAINT uq_tag_device_port UNIQUE (device_id, port_number)
 );
 
+-- Идемпотентные миграции для ранее созданных БД (на свежей БД колонки уже в CREATE TABLE выше).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'tags' AND column_name = 'raw_data_type'
+    ) THEN
+        ALTER TABLE tags ADD COLUMN raw_data_type modbus_raw_data_type NOT NULL DEFAULT 'UINT16';
+        -- Бэкафилл по прежней неявной логике (ширина в регистрах → бинарный тип).
+        UPDATE tags SET raw_data_type = CASE
+            WHEN register_count = 2 THEN 'FLOAT32'::modbus_raw_data_type
+            WHEN register_count = 4 THEN 'FLOAT64'::modbus_raw_data_type
+            ELSE 'UINT16'::modbus_raw_data_type
+        END;
+    END IF;
+END $$;
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS max_bit_span SMALLINT NOT NULL DEFAULT 2000;
+
 CREATE TABLE IF NOT EXISTS metrics (
     time TIMESTAMPTZ NOT NULL,
     tag_id INT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
@@ -80,6 +110,20 @@ CREATE TABLE IF NOT EXISTS metrics (
     value DOUBLE PRECISION NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_metrics_tag_time ON metrics (tag_id, time DESC);
+
+-- Таблица команд управления (Supervisory Control).
+-- Единица аудита действий операторов и надёжной асинхронной доставки команд в коллектор.
+CREATE TABLE IF NOT EXISTS device_commands (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tag_id INT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+    value DOUBLE PRECISION NOT NULL,
+    operator_id VARCHAR(100) NOT NULL,
+    status command_status NOT NULL DEFAULT 'PENDING',
+    error_message VARCHAR(500),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_commands_status ON device_commands (status, created_at);
 
 -- 3. TIMESCALEDB
 SELECT create_hypertable('metrics', 'time', if_not_exists => TRUE);
@@ -131,6 +175,38 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_tags_updated_at BEFORE UPDATE ON tags
 FOR EACH ROW EXECUTE FUNCTION fn_update_tag_timestamp();
+
+-- Новая команда (Pending) → мгновенный пинг коллектору. Канал несёт только UUID,
+-- коллектор сам вычитывает строку из БД. Заменяет polling.
+CREATE OR REPLACE FUNCTION fn_trigger_notify_new_command() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('control_commands', NEW.id::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_notify_new_command AFTER INSERT ON device_commands
+FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_new_command();
+
+-- Изменение статуса команды → уведомление WebApi для трансляции в канал диспетчеризации (SignalR).
+-- Авто-обновление updated_at и pg_notify в одном BEFORE-триггере.
+CREATE OR REPLACE FUNCTION fn_trigger_notify_command_status() RETURNS TRIGGER AS $$
+DECLARE
+    payload JSON;
+BEGIN
+    NEW.updated_at = NOW();
+    payload = json_build_object(
+        'commandId', NEW.id,
+        'status', NEW.status,
+        'errorMessage', NEW.error_message
+    );
+    PERFORM pg_notify('command_status_changed', payload::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_notify_command_status BEFORE UPDATE OF status ON device_commands
+FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_command_status();
 
 -- 5. SYSTEM CONFIG
 CREATE TABLE IF NOT EXISTS system_config (
@@ -191,3 +267,44 @@ VALUES
     ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG_RAW'::tag_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100),
     ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG_RAW'::tag_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20),
     ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::tag_data_type,     0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1);
+
+-- Device: Siemens S7-1200 — привод асинхронного двигателя (slave 2 на том же шлюзе sim:5020).
+INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active)
+VALUES ('Siemens S7-1200',
+        (SELECT id FROM modbus_connections WHERE ip_address = 'sim' AND port = 5020),
+        2, true, 120, true);
+
+-- Теги Siemens. Измерения процесса — Input Registers (RO, FC04, FLOAT32 ABCD).
+-- Управление — Holding/Coil (RW): уставка оборотов и команда пуска.
+INSERT INTO tags
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max)
+VALUES
+    -- Read-only измерения
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 0, 'Обороты двигателя', 's7_rpm',      'ANALOG_PHYSICAL'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 1, 'Температура мотора','s7_temp',     'ANALOG_PHYSICAL'::tag_data_type, 2, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '°C',  0, 0, 0, 0),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 2, 'Мощность',         's7_power',     'ANALOG_PHYSICAL'::tag_data_type, 4, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'kW',  0, 0, 0, 0),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 3, 'Вращается',        's7_running',   'DIGITAL'::tag_data_type,         0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 4, 'Перегрев',         's7_overheat',  'DIGITAL'::tag_data_type,         1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1),
+    -- Read/Write управление
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 5, 'Уставка оборотов', 's7_rpm_sp',    'ANALOG_PHYSICAL'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 6, 'Пуск двигателя',   's7_run_cmd',   'DIGITAL'::tag_data_type,         0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1);
+
+-- Device: Schneider M221 — насосная станция / резервуар (slave 3).
+INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active)
+VALUES ('Schneider M221',
+        (SELECT id FROM modbus_connections WHERE ip_address = 'sim' AND port = 5020),
+        3, true, 120, true);
+
+-- Теги Schneider. Давление/уровень — Input Registers (RO, 16-bit, линейное масштабирование).
+-- Управление — реле насоса (Coil) и уставка давления (Holding).
+INSERT INTO tags
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max)
+VALUES
+    -- Read-only измерения
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 0, 'Давление в баке',  'm221_press',    'ANALOG_RAW'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 1, 'Уровень в баке',   'm221_level',    'ANALOG_RAW'::tag_data_type, 1, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '%',   0, 65535, 0, 100),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 2, 'Давление достигнуто','m221_press_ok','DIGITAL'::tag_data_type,   0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 3, 'Низкий уровень',   'm221_low_lvl',  'DIGITAL'::tag_data_type,    1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
+    -- Read/Write управление
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 4, 'Реле насоса',      'm221_pump',     'DIGITAL'::tag_data_type,    0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 5, 'Уставка давления', 'm221_press_sp', 'ANALOG_RAW'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10);

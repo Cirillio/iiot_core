@@ -41,7 +41,9 @@ public class DapperContext
             builder.MapEnum<TagDataType>("tag_data_type", translator);
             builder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
             builder.MapEnum<ModbusEndianness>("modbus_endianness", translator);
+            builder.MapEnum<RawDataType>("modbus_raw_data_type", new UpperCaseNameTranslator());
             builder.MapEnum<ServiceStatus>("system_service_status", translator);
+            builder.MapEnum<CommandStatus>("command_status", translator);
 
             DataSource = builder.Build();
 
@@ -53,6 +55,7 @@ public class DapperContext
             SqlMapper.AddTypeHandler(typeof(ModbusRegisterType), new EnumTypeHandler<ModbusRegisterType>());
             SqlMapper.AddTypeHandler(typeof(ModbusEndianness), new EnumTypeHandler<ModbusEndianness>());
             SqlMapper.AddTypeHandler(typeof(ServiceStatus), new EnumTypeHandler<ServiceStatus>());
+            SqlMapper.AddTypeHandler(typeof(CommandStatus), new EnumTypeHandler<CommandStatus>());
 
             _logger.Information(
                 "DapperContext initialized with native Enum mapping for {Host}",
@@ -76,6 +79,17 @@ public class UpperSnakeCaseNameTranslator : INpgsqlNameTranslator
 {
     public string TranslateMemberName(string clrName) =>
         Regex.Replace(clrName, "(?<!^)([A-Z])", "_$1").ToUpper();
+
+    public string TranslateTypeName(string clrName) => clrName;
+}
+
+/// <summary>
+/// Транслятор для enum'ов без разделителя слов: PascalCase → UPPERCASE (Int16 → INT16, UInt16 → UINT16).
+/// Snake-case-регекс здесь не годится: UInt16 → "U_INT16" не совпал бы с меткой 'UINT16'.
+/// </summary>
+public class UpperCaseNameTranslator : INpgsqlNameTranslator
+{
+    public string TranslateMemberName(string clrName) => clrName.ToUpperInvariant();
 
     public string TranslateTypeName(string clrName) => clrName;
 }

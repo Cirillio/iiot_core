@@ -28,6 +28,10 @@ public class CreateTagDtoValidator : AbstractValidator<CreateTagDto>
             .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
             .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
 
+        RuleFor(x => x.RawDataType)
+            .Must(x => string.IsNullOrEmpty(x) || Enum.TryParse<RawDataType>(x.Replace("_", ""), true, out _))
+            .WithMessage("Недопустимый тип данных регистра. Допустимые: INT16, UINT16, INT32, UINT32, FLOAT32, FLOAT64");
+
         RuleFor(x => x.PortNumber)
             .InclusiveBetween(0, 65535)
             .WithMessage("Номер порта должен быть в диапазоне от 0 до 65535");
@@ -55,6 +59,10 @@ public class UpdateTagDtoValidator : AbstractValidator<UpdateTagDto>
         RuleFor(x => x.DataType)
             .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
             .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
+
+        RuleFor(x => x.RawDataType)
+            .Must(x => string.IsNullOrEmpty(x) || Enum.TryParse<RawDataType>(x.Replace("_", ""), true, out _))
+            .WithMessage("Недопустимый тип данных регистра. Допустимые: INT16, UINT16, INT32, UINT32, FLOAT32, FLOAT64");
 
         RuleFor(x => x.PortNumber)
             .InclusiveBetween(0, 65535)

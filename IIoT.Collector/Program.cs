@@ -35,7 +35,9 @@ try
     dataSourceBuilder.MapEnum<TagDataType>("tag_data_type", translator);
     dataSourceBuilder.MapEnum<ModbusRegisterType>("modbus_register_type", translator);
     dataSourceBuilder.MapEnum<ModbusEndianness>("modbus_endianness", translator);
+    dataSourceBuilder.MapEnum<RawDataType>("modbus_raw_data_type", new UpperCaseNameTranslator());
     dataSourceBuilder.MapEnum<ServiceStatus>("system_service_status", translator);
+    dataSourceBuilder.MapEnum<CommandStatus>("command_status", translator);
     var dataSource = dataSourceBuilder.Build();
     builder.Services.AddSingleton(dataSource);
 
@@ -47,6 +49,7 @@ try
 
     // Репозитории (Scoped - создаются заново для каждого Scope/Запроса)
     builder.Services.AddScoped<IDataRepository, DataRepository>();
+    builder.Services.AddScoped<ICommandRepository, CommandRepository>();
 
     // Доменные сервисы и инфраструктура (Singleton - живут всё время жизни приложения)
     // ModbusService - драйвер

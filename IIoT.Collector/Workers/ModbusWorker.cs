@@ -32,6 +32,7 @@ public class ModbusWorker(
     private List<Device> _devices = [];
     private Dictionary<int, List<TagSettings>> _tagCache = [];
     private Dictionary<int, ModbusConnection> _connectionsById = [];
+    private Dictionary<int, TagSettings> _tagsById = [];
 
     // Кэш последних сохраненных значений для реализации Deadband (пороговой записи)
     // Key: TagId, Value: (Value, Timestamp)
@@ -64,11 +65,12 @@ public class ModbusWorker(
         var pollTask = RunDynamicPollingLoop(stoppingToken); // Основной опрос устройств
         var configTask = RunConfigLoop(stoppingToken); // Периодическое обновление настроек (резервное)
         var listenerTask = RunConfigListenerLoop(stoppingToken); // Мгновенное обновление по NOTIFY
+        var commandTask = RunCommandListenerLoop(stoppingToken); // Приём команд управления (Supervisory Control)
         var healthTask = RunHealthLoop(stoppingToken); // Отправка Heartbeat статуса в БД
         var bufferTask = RunBufferFlusherLoop(stoppingToken); // Фоновая выгрузка из буфера
 
         // 4. Ожидание завершения всех задач
-        await Task.WhenAll(pollTask, configTask, listenerTask, healthTask, bufferTask);
+        await Task.WhenAll(pollTask, configTask, listenerTask, commandTask, healthTask, bufferTask);
     }
 
     /// <summary>
@@ -123,6 +125,190 @@ public class ModbusWorker(
                 );
                 await Task.Delay(5000, ct);
             }
+        }
+    }
+
+    /// <summary>
+    /// Слушает канал 'control_commands' в Postgres. Заменяет polling: при INSERT новой команды
+    /// БД присылает UUID, коллектор вычитывает команду и исполняет её приоритетно.
+    /// </summary>
+    private async Task RunCommandListenerLoop(CancellationToken ct)
+    {
+        var connectionString = configuration.GetConnectionString("ADAMDB");
+        if (string.IsNullOrEmpty(connectionString))
+            return;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var conn = new Npgsql.NpgsqlConnection(connectionString);
+                await conn.OpenAsync(ct);
+
+                conn.Notification += async (o, e) =>
+                {
+                    if (!Guid.TryParse(e.Payload, out var commandId))
+                    {
+                        logger.LogWarning("Received malformed command id: {Payload}", e.Payload);
+                        return;
+                    }
+
+                    logger.LogInformation("Control command received: {CommandId}", commandId);
+                    await ExecuteCommandAsync(commandId, ct);
+                };
+
+                using (var cmd = new Npgsql.NpgsqlCommand("LISTEN control_commands", conn))
+                {
+                    await cmd.ExecuteNonQueryAsync(ct);
+                }
+
+                logger.LogInformation("Listening for control commands...");
+
+                while (!ct.IsCancellationRequested)
+                {
+                    await conn.WaitAsync(ct);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(
+                    "Command listener connection lost. Retrying in 5s... Error: {Msg}",
+                    ex.Message
+                );
+                await Task.Delay(5000, ct);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Исполняет команду управления: захватывает шину, пишет в Modbus, квитирует статус
+    /// и публикует фиктивную метрику с новым значением (мгновенный фидбэк телеметрии).
+    /// </summary>
+    private async Task ExecuteCommandAsync(Guid commandId, CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var commandRepo = scope.ServiceProvider.GetRequiredService<ICommandRepository>();
+        var dataRepo = scope.ServiceProvider.GetRequiredService<IDataRepository>();
+
+        var command = await commandRepo.GetByIdAsync(commandId);
+        if (command == null)
+        {
+            logger.LogWarning("Command {Id} not found in DB", commandId);
+            return;
+        }
+
+        // Резолв тега и устройства из локального кэша конфигурации.
+        if (!_tagsById.TryGetValue(command.TagId, out var tag) || !tag.DeviceId.HasValue)
+        {
+            await commandRepo.UpdateStatusAsync(
+                commandId,
+                CommandStatus.Failed,
+                $"Tag {command.TagId} not found or has no device binding."
+            );
+            return;
+        }
+
+        // Защита ядра (defense-in-depth): запись только в Coil/Holding, даже если API пропустил.
+        if (
+            tag.RegisterType
+            is ModbusRegisterType.DiscreteInput
+                or ModbusRegisterType.InputRegister
+        )
+        {
+            await commandRepo.UpdateStatusAsync(
+                commandId,
+                CommandStatus.Failed,
+                $"Register type {tag.RegisterType} is Read-Only."
+            );
+            return;
+        }
+
+        var device = _devices.FirstOrDefault(d => d.Id == tag.DeviceId.Value);
+        if (device == null || !_connectionsById.TryGetValue(device.ConnectionId, out var connection))
+        {
+            await commandRepo.UpdateStatusAsync(
+                commandId,
+                CommandStatus.Failed,
+                "Target device or connection is not in active configuration."
+            );
+            return;
+        }
+
+        // Сигнализируем старт обработки (UPDATE триггерит уведомление в АРМ).
+        await commandRepo.UpdateStatusAsync(commandId, CommandStatus.Processing);
+
+        // Захват физического канала: дожидаемся завершения текущего цикла опроса этого шлюза.
+        var gate = deviceService.GetLock(device.ConnectionId);
+        await gate.WaitAsync(ct);
+        try
+        {
+            var master = await deviceService.GetConnectionAsync(connection, ct);
+            if (master == null)
+            {
+                await commandRepo.UpdateStatusAsync(
+                    commandId,
+                    CommandStatus.Failed,
+                    $"Unable to (re)connect to gateway {connection.IpAddress}:{connection.Port}."
+                );
+                return;
+            }
+
+            // Физическая транзакция записи (FC05 / FC06 / FC16).
+            await modbusDriver.WriteTagAsync(master, (byte)device.SlaveId, tag, command.Value, ct);
+
+            await commandRepo.UpdateStatusAsync(commandId, CommandStatus.Success);
+
+            // Мгновенный фидбэк: фиктивная метрика с новым значением → телеметрия без ожидания опроса.
+            var metric = new Metric
+            {
+                Time = DateTime.UtcNow,
+                TagId = tag.TagId,
+                RawValue = command.Value,
+                Value = TagExtensions.Calculate(command.Value, tag),
+            };
+            try
+            {
+                await dataRepo.SaveMetricsAsync([metric]);
+                _lastSavedValues[tag.TagId] = (metric.Value, metric.Time);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning("Command {Id} written, but synthetic metric failed: {Msg}", commandId, ex.Message);
+            }
+
+            logger.LogInformation(
+                "Command {Id} executed: tag {Tag} <= {Value}",
+                commandId,
+                tag.TagId,
+                command.Value
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                "Command {Id} failed ({Type}): {Msg}",
+                commandId,
+                ex.GetType().Name,
+                ex.Message
+            );
+
+            await commandRepo.UpdateStatusAsync(
+                commandId,
+                CommandStatus.Failed,
+                $"{ex.GetType().Name}: {ex.Message}"
+            );
+
+            // Транспортный сбой — сбрасываем сокет, чтобы опрос переподключился.
+            if (Services.ModbusErrorPolicy.IsTransport(ex))
+                deviceService.InvalidateConnection(device.ConnectionId);
+        }
+        finally
+        {
+            gate.Release();
         }
     }
 
@@ -304,6 +490,12 @@ public class ModbusWorker(
                 if (tagsOfType.Count == 0)
                     continue;
 
+                // Битовые таблицы (Coil/DiscreteInput) ограничиваем отдельным MaxBitSpan,
+                // иначе MaxRegisterSpan (настроенный под регистры) дробит чтение битов на мелкие пакеты.
+                bool isBitTable =
+                    registerType is ModbusRegisterType.Coil or ModbusRegisterType.DiscreteInput;
+                int maxSpan = isBitTable ? device.MaxBitSpan : device.MaxRegisterSpan;
+
                 try
                 {
                     var rawData = await modbusDriver.ReadRegistersAsync(
@@ -311,12 +503,17 @@ public class ModbusWorker(
                         (byte)device.SlaveId,
                         tagsOfType,
                         registerType,
-                        device.MaxRegisterSpan,
+                        maxSpan,
                         device.UseGroupPolling,
                         ct
                     );
 
                     allMetrics.AddRange(processService.Process(rawData, tags));
+                }
+                catch (Exception ex) when (Services.ModbusErrorPolicy.IsTransport(ex))
+                {
+                    // Транспортный сбой — пробрасываем во внешний catch для сброса соединения.
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -591,6 +788,9 @@ public class ModbusWorker(
             .Where(s => s.DeviceId.HasValue)
             .GroupBy(s => s.DeviceId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Плоский индекс по TagId — нужен обработчику команд для резолва тега за O(1).
+        _tagsById = allTags.ToDictionary(s => s.TagId);
 
         foreach (var device in _devices)
         {

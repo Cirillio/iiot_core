@@ -21,5 +21,6 @@ public record CreateTagDto(
     string? Formula,
     string UiConfig,
     string? Endianness = null,
-    double? DeadbandThreshold = null
+    double? DeadbandThreshold = null,
+    string? RawDataType = null
 );

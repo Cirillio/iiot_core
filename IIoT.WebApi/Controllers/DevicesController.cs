@@ -67,6 +67,7 @@ public class DevicesController(
             SlaveId = dto.SlaveId,
             UseGroupPolling = dto.UseGroupPolling,
             MaxRegisterSpan = dto.MaxRegisterSpan,
+            MaxBitSpan = dto.MaxBitSpan,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
         };
@@ -99,6 +100,7 @@ public class DevicesController(
             SlaveId = dto.SlaveId,
             UseGroupPolling = dto.UseGroupPolling,
             MaxRegisterSpan = dto.MaxRegisterSpan,
+            MaxBitSpan = dto.MaxBitSpan,
             IsActive = dto.IsActive,
         };
 
