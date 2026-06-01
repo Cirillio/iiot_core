@@ -25,6 +25,10 @@ public class ControlController(
     /// </summary>
     /// <returns>202 Accepted с объектом команды; клиент отслеживает статус по Id.</returns>
     [HttpPost("write")]
+    [ProducesResponseType(typeof(DeviceCommand), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Write(WriteCommandDto dto)
     {
         // 1. Резолв конфигурации тега

@@ -56,7 +56,10 @@ CREATE TABLE IF NOT EXISTS devices (
     use_group_polling BOOLEAN NOT NULL DEFAULT TRUE,
     max_register_span SMALLINT NOT NULL DEFAULT 120,
     max_bit_span SMALLINT NOT NULL DEFAULT 2000,
-    is_active BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,           -- намерение оператора: опрашивать устройство или нет
+    is_online BOOLEAN NOT NULL DEFAULT FALSE, -- рантайм: достучался ли коллектор сейчас (пишет коллектор)
+    last_seen TIMESTAMPTZ,                    -- время последнего успешного контакта
+    last_conn_error VARCHAR(500),             -- текст последней ошибки связи
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -102,6 +105,11 @@ DO $$ BEGIN
 END $$;
 
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS max_bit_span SMALLINT NOT NULL DEFAULT 2000;
+
+-- Рантайм-статус доступности (отделён от is_active — намерения оператора).
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_online BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_conn_error VARCHAR(500);
 
 CREATE TABLE IF NOT EXISTS metrics (
     time TIMESTAMPTZ NOT NULL,

@@ -47,9 +47,19 @@ public record DashboardDeviceDTO
     public int MaxRegisterSpan { get; init; } = 120;
 
     /// <summary>
-    /// Состояние активности опроса.
+    /// Состояние активности опроса (намерение оператора).
     /// </summary>
     public bool IsActive { get; init; } = false;
+
+    /// <summary>
+    /// Рантайм-доступность: смог ли коллектор связаться с устройством (пишет коллектор).
+    /// </summary>
+    public bool IsOnline { get; init; }
+
+    /// <summary>
+    /// Время последнего успешного контакта (UTC).
+    /// </summary>
+    public DateTime? LastSeen { get; init; }
 
     /// <summary>
     /// Дата регистрации устройства.

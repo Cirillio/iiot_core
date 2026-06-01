@@ -32,4 +32,15 @@ public class MetricsController(IMetricsRepository repository) : ControllerBase
         var data = await _repository.GetHistoryAsync(tagId, from, to);
         return Ok(data);
     }
+
+    /// <summary>
+    /// Последнее показание по каждому тегу — снимок для инициализации UI
+    /// (карточки, АРМ управления) до прихода live-метрик по SignalR.
+    /// </summary>
+    [HttpGet("latest")]
+    public async Task<ActionResult> GetLatest()
+    {
+        var data = await _repository.GetLatestAsync();
+        return Ok(data);
+    }
 }

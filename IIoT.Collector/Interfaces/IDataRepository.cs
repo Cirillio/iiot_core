@@ -3,6 +3,15 @@ using IIoT.Shared.Models;
 namespace IIoT.Collector.Interfaces;
 
 /// <summary>
+/// Рантайм-статус доступности одного устройства за цикл опроса.
+/// </summary>
+/// <param name="DeviceId">ID устройства.</param>
+/// <param name="IsOnline">Доступно ли (с учётом гистерезиса).</param>
+/// <param name="Seen">Был ли успешный контакт в этом цикле (для обновления last_seen).</param>
+/// <param name="Error">Текст ошибки связи (null при успехе).</param>
+public record DeviceStatusUpdate(int DeviceId, bool IsOnline, bool Seen, string? Error);
+
+/// <summary>
 /// Интерфейс основного репозитория данных (PostgreSQL/TimescaleDB).
 /// Отвечает за сохранение временных рядов (метрик), получение конфигураций и обновление статусов.
 /// </summary>
@@ -46,4 +55,10 @@ public interface IDataRepository
     /// </summary>
     /// <returns>Объект конфигурации системы.</returns>
     Task<SystemConfig> GetSystemConfigAsync();
+
+    /// <summary>
+    /// Батч-обновление рантайм-статуса доступности устройств (is_online / last_seen / last_conn_error).
+    /// Не трогает is_active.
+    /// </summary>
+    Task UpdateDeviceStatusesAsync(IReadOnlyList<DeviceStatusUpdate> updates);
 }

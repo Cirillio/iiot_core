@@ -1,3 +1,5 @@
+using IIoT.WebApi.Data.DTO;
+
 namespace IIoT.WebApi.Core.Interfaces;
 
 /// <summary>
@@ -13,4 +15,9 @@ public interface IMetricsRepository
     /// <param name="to">Конечная дата (UTC).</param>
     /// <returns>Коллекция массивов вида [timestamp_ms, value], оптимизированная для ECharts.</returns>
     Task<IEnumerable<object[]>> GetHistoryAsync(int tagId, DateTime from, DateTime to);
+
+    /// <summary>
+    /// Последнее показание по каждому тегу — снимок для инициализации UI.
+    /// </summary>
+    Task<IEnumerable<LatestMetricDto>> GetLatestAsync();
 }

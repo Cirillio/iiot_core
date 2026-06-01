@@ -38,7 +38,8 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
                 GROUP BY device_id
             )
             SELECT
-                d.id, d.name, d.connection_id, d.slave_id, d.use_group_polling, d.max_register_span, d.is_active, d.created_at,
+                d.id, d.name, d.connection_id, d.slave_id, d.use_group_polling, d.max_register_span, d.is_active,
+                d.is_online, d.last_seen, d.created_at,
                 mc.ip_address, mc.port,
                 COALESCE(dt.total_count, 0) as TotalTags,
                 rs.tag_id,

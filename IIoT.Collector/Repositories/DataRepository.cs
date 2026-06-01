@@ -197,6 +197,44 @@ public class DataRepository : IDataRepository
     }
 
     /// <inheritdoc />
+    public async Task UpdateDeviceStatusesAsync(IReadOnlyList<DeviceStatusUpdate> updates)
+    {
+        if (updates.Count == 0)
+            return;
+
+        // Один UPDATE на весь набор через unnest параллельных массивов — без N запросов.
+        const string sql =
+            @"
+            UPDATE devices d SET
+                is_online = u.online,
+                last_seen = CASE WHEN u.seen THEN now() ELSE d.last_seen END,
+                last_conn_error = u.err
+            FROM unnest(@Ids::int[], @Online::bool[], @Seen::bool[], @Err::text[])
+                 AS u(id, online, seen, err)
+            WHERE d.id = u.id";
+
+        try
+        {
+            await using var conn = await CreateConnection();
+            await conn.ExecuteAsync(
+                sql,
+                new
+                {
+                    Ids = updates.Select(u => u.DeviceId).ToArray(),
+                    Online = updates.Select(u => u.IsOnline).ToArray(),
+                    Seen = updates.Select(u => u.Seen).ToArray(),
+                    Err = updates.Select(u => u.Error).ToArray(),
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            // Статус доступности не критичен для сбора метрик — логируем и продолжаем.
+            _logger.Error(ex, "Failed to update device reachability statuses");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<SystemConfig> GetSystemConfigAsync()
     {
         const string sql =

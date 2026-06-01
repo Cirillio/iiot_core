@@ -39,6 +39,12 @@ public class ModbusWorker(
     private readonly ConcurrentDictionary<int, (double Value, DateTime Time)> _lastSavedValues =
         new();
 
+    // Гистерезис доступности: число подряд идущих неудачных циклов на устройство.
+    // Устройство считается offline только после OfflineFailThreshold неудач подряд,
+    // online — с первого же успешного цикла. Защита от мигания на единичных таймаутах.
+    private const int OfflineFailThreshold = 3;
+    private readonly ConcurrentDictionary<int, int> _deviceFailStreak = new();
+
     private volatile SystemConfig _currentConfig = new();
 
     /// <summary>
@@ -410,16 +416,34 @@ public class ModbusWorker(
 
             var allMetrics = new List<Metric>();
 
-            // Параллельный опрос всех устройств
-            var results = await Task.WhenAll(_devices.Select(d => ReadDeviceAsync(d, ct)));
+            // Параллельный опрос всех устройств. Порядок results соответствует _devices.
+            var devices = _devices;
+            var results = await Task.WhenAll(devices.Select(d => ReadDeviceAsync(d, ct)));
 
-            foreach (var r in results)
+            var statusUpdates = new List<DeviceStatusUpdate>(devices.Count);
+            for (int i = 0; i < devices.Count; i++)
             {
+                var device = devices[i];
+                var r = results[i];
+
                 if (r.Success)
+                {
                     allMetrics.AddRange(r.Metrics);
+                    _deviceFailStreak[device.Id] = 0;
+                    statusUpdates.Add(new DeviceStatusUpdate(device.Id, true, true, null));
+                }
+                else
+                {
+                    int streak = _deviceFailStreak.AddOrUpdate(device.Id, 1, (_, v) => v + 1);
+                    bool online = streak < OfflineFailThreshold; // grace-период перед offline
+                    statusUpdates.Add(new DeviceStatusUpdate(device.Id, online, false, r.Error));
+                }
             }
 
             _failedDevicesCount = results.Count(r => !r.Success);
+
+            // Персистим рантайм-статус доступности (не трогает is_active).
+            await repository.UpdateDeviceStatusesAsync(statusUpdates);
 
             if (allMetrics.Count > 0)
             {
@@ -452,7 +476,7 @@ public class ModbusWorker(
     /// <summary>
     /// Читает данные с одного конкретного устройства по всем типам регистров.
     /// </summary>
-    private async Task<(bool Success, IEnumerable<Metric> Metrics)> ReadDeviceAsync(
+    private async Task<(bool Success, IEnumerable<Metric> Metrics, string? Error)> ReadDeviceAsync(
         Device device,
         CancellationToken ct
     )
@@ -465,11 +489,11 @@ public class ModbusWorker(
                 device.Name,
                 device.ConnectionId
             );
-            return (false, []);
+            return (false, [], $"Connection {device.ConnectionId} not in config");
         }
 
         if (!_tagCache.TryGetValue(device.Id, out var tags))
-            return (true, []);
+            return (true, [], null);
 
         // Сериализуем доступ к TCP-сессии: устройства за одним шлюзом опрашиваются по очереди
         var gate = deviceService.GetLock(device.ConnectionId);
@@ -479,7 +503,7 @@ public class ModbusWorker(
             // Получаем соединение из пула (по ConnectionId)
             var master = await deviceService.GetConnectionAsync(connection, ct);
             if (master == null)
-                return (false, []);
+                return (false, [], $"Unable to connect to {connection.IpAddress}:{connection.Port}");
 
             var allMetrics = new List<Metric>();
 
@@ -547,14 +571,14 @@ public class ModbusWorker(
                 );
             }
 
-            return (true, filteredMetrics);
+            return (true, filteredMetrics, null);
         }
         catch (Exception ex)
         {
             logger.LogWarning("Device {Name}: {Msg}", device.Name, ex.Message);
             // Сбрасываем соединение при ошибке ввода-вывода
             deviceService.InvalidateConnection(device.ConnectionId);
-            return (false, []);
+            return (false, [], ex.Message);
         }
         finally
         {
