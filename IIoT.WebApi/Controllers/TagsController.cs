@@ -21,6 +21,11 @@ public class TagsController(
     private readonly ITagRepository _repository = repository;
     private readonly IHubContext<MonitoringHub, IMonitoringClient> _hubContext = hubContext;
 
+    // Фронтенд шлёт uiConfig в camelCase (color, minCritical…), а TagUiConfig — PascalCase.
+    // Без case-insensitive дефолтный JsonSerializer не мапит поля → конфиг сохраняется пустым.
+    private static readonly JsonSerializerOptions UiConfigJsonOptions =
+        new() { PropertyNameCaseInsensitive = true };
+
     /// <summary>
     /// Получить список всех датчиков системы.
     /// </summary>
@@ -89,7 +94,7 @@ public class TagsController(
 
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new TagUiConfig()
-            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
+            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig, UiConfigJsonOptions) ?? new TagUiConfig();
 
         var tag = new TagSettings
         {
@@ -157,7 +162,7 @@ public class TagsController(
 
         var uiConfig = string.IsNullOrEmpty(dto.UiConfig)
             ? new TagUiConfig()
-            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig) ?? new TagUiConfig();
+            : JsonSerializer.Deserialize<TagUiConfig>(dto.UiConfig, UiConfigJsonOptions) ?? new TagUiConfig();
 
         var updated = existing with
         {
