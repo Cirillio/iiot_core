@@ -115,7 +115,6 @@ public class TagsController(
             OutputMax = dto.OutputMax,
             OffsetVal = dto.OffsetVal,
             DeadbandThreshold = dto.DeadbandThreshold,
-            Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -182,7 +181,6 @@ public class TagsController(
             OutputMax = dto.OutputMax,
             OffsetVal = dto.OffsetVal,
             DeadbandThreshold = dto.DeadbandThreshold,
-            Formula = dto.Formula,
             UiConfigJson = uiConfig,
             UpdatedAt = DateTime.UtcNow,
         };

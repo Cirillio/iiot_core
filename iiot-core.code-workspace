@@ -1,0 +1,38 @@
+{
+  "folders": [
+    {
+      "name": "WebApi",
+      "path": "IIoT.WebApi"
+    },
+    {
+      "name": "Collector",
+      "path": "IIoT.Collector"
+    },
+    {
+      "name": "Shared",
+      "path": "IIoT.Shared"
+    },
+    {
+      "name": "Sim",
+      "path": "sim"
+    },
+    {
+      "name": "Root",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/.git": true,
+      "iiot_admin": true,
+      "iiot_monitoring": true,
+      "mobile_mockup_react": true,
+      "templs": true,
+      "hub_listener_test": true,
+      "Презентация": true
+    },
+    "dotnet.defaultSolution": "IIoT.sln"
+  }
+}

@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- 1. ENUMS
 DO $$ BEGIN
-    CREATE TYPE tag_data_type AS ENUM ('ANALOG_RAW', 'ANALOG_PHYSICAL', 'DIGITAL', 'VIRTUAL');
+    CREATE TYPE tag_data_type AS ENUM ('ANALOG_RAW', 'ANALOG_PHYSICAL', 'DIGITAL');
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
@@ -82,7 +82,6 @@ CREATE TABLE IF NOT EXISTS tags (
     output_max DOUBLE PRECISION DEFAULT 100,
     offset_val DOUBLE PRECISION DEFAULT 0,
     deadband_threshold DOUBLE PRECISION,
-    formula TEXT,
     ui_config JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_tag_device_port UNIQUE (device_id, port_number)
@@ -103,6 +102,9 @@ DO $$ BEGIN
         END;
     END IF;
 END $$;
+
+-- Удаление наследия виртуальных тегов: фича вырезана, колонка формул больше не нужна.
+ALTER TABLE tags DROP COLUMN IF EXISTS formula;
 
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS max_bit_span SMALLINT NOT NULL DEFAULT 2000;
 
@@ -238,6 +240,29 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_notify_config_change AFTER UPDATE OR INSERT ON system_config
 FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_config_change();
+
+-- Применение политик хранения TimescaleDB по значениям из system_config.
+-- Срабатывает при seed-INSERT и при каждом сохранении настроек из UI (PUT /api/system/config),
+-- поэтому период хранения меняется на лету — без перезапуска и ручного SQL.
+-- remove+add, а не правка «на месте»: TimescaleDB не умеет менять интервал существующей политики.
+-- Сырьё (metrics) дропается раньше, часовые агрегаты (metrics_hourly) живут дольше.
+CREATE OR REPLACE FUNCTION fn_apply_retention_policies() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM remove_retention_policy('metrics', if_exists => true);
+    PERFORM add_retention_policy('metrics',
+        drop_after => make_interval(days => COALESCE(NEW.raw_retention_days, 90)));
+
+    PERFORM remove_retention_policy('metrics_hourly', if_exists => true);
+    PERFORM add_retention_policy('metrics_hourly',
+        drop_after => make_interval(days => COALESCE(NEW.agg_retention_days, 1825)));
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_apply_retention
+AFTER INSERT OR UPDATE OF raw_retention_days, agg_retention_days ON system_config
+FOR EACH ROW EXECUTE FUNCTION fn_apply_retention_policies();
 
 -- 6. SYSTEM STATUS
 CREATE TABLE IF NOT EXISTS system_status (

@@ -1,4 +1,5 @@
 using IIoT.WebApi.Core.Interfaces;
+using IIoT.WebApi.Data.DTO;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IIoT.WebApi.Controllers;
@@ -41,6 +42,33 @@ public class MetricsController(IMetricsRepository repository) : ControllerBase
     public async Task<ActionResult> GetLatest()
     {
         var data = await _repository.GetLatestAsync();
+        return Ok(data);
+    }
+
+    /// <summary>
+    /// Постраничная выборка сырых метрик для табличного просмотра (новые сверху).
+    /// </summary>
+    /// <param name="tagId">Фильтр по тегу; не задан — все теги.</param>
+    /// <param name="from">Начало периода (ISO 8601); не задано — без нижней границы.</param>
+    /// <param name="to">Конец периода (ISO 8601); не задано — без верхней границы.</param>
+    /// <param name="page">Номер страницы (1-based, по умолчанию 1).</param>
+    /// <param name="pageSize">Размер страницы (1..500, по умолчанию 50).</param>
+    /// <returns>Страница строк метрик с общим числом записей под фильтр.</returns>
+    [HttpGet("raw")]
+    public async Task<ActionResult<PagedResult<RawMetricDto>>> GetRaw(
+        [FromQuery] int? tagId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50
+    )
+    {
+        if (from.HasValue && to.HasValue && from >= to)
+        {
+            return BadRequest("Дата 'from' должна быть меньше даты 'to'");
+        }
+
+        var data = await _repository.GetRawAsync(tagId, from, to, page, pageSize);
         return Ok(data);
     }
 }

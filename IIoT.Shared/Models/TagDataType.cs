@@ -23,9 +23,4 @@ public enum TagDataType
     /// Дискретный сигнал (0 или 1).
     /// </summary>
     Digital,
-
-    /// <summary>
-    /// Виртуальный тег (вычисляется по формуле из других тегов).
-    /// </summary>
-    Virtual,
 }

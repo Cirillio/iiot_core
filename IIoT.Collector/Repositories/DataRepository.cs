@@ -177,7 +177,6 @@ public class DataRepository : IDataRepository
                 output_min, output_max,
                 offset_val,
                 deadband_threshold,
-                formula,
                 ui_config as UiConfigJson,
                 updated_at
             FROM tags

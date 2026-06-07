@@ -26,7 +26,7 @@ public class CreateTagDtoValidator : AbstractValidator<CreateTagDto>
 
         RuleFor(x => x.DataType)
             .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
-            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
+            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL");
 
         RuleFor(x => x.RawDataType)
             .Must(x => string.IsNullOrEmpty(x) || Enum.TryParse<RawDataType>(x.Replace("_", ""), true, out _))
@@ -58,7 +58,7 @@ public class UpdateTagDtoValidator : AbstractValidator<UpdateTagDto>
 
         RuleFor(x => x.DataType)
             .Must(x => Enum.TryParse<TagDataType>(x?.Replace("_", ""), true, out _))
-            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL, VIRTUAL");
+            .WithMessage("Недопустимый тип данных. Допустимые: ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL");
 
         RuleFor(x => x.RawDataType)
             .Must(x => string.IsNullOrEmpty(x) || Enum.TryParse<RawDataType>(x.Replace("_", ""), true, out _))
