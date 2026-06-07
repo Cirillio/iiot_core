@@ -14,7 +14,6 @@ public static class TagExtensions
     /// <returns>Откалиброванное значение (double).</returns>
     /// <remarks>
     /// DIGITAL         → 1.0 если rawValue > 0, иначе 0.0.
-    /// VIRTUAL         → возвращает rawValue без изменений (парсинг формул — TODO).
     /// ANALOG_PHYSICAL → готовая величина с прибора, возвращается как есть (только Offset).
     /// ANALOG_RAW      → линейная интерполяция: ((Raw-InMin)/(InMax-InMin))*(OutMax-OutMin)+OutMin+Offset,
     /// с защитой от деления на ноль.
@@ -24,11 +23,6 @@ public static class TagExtensions
         if (settings.DataType == TagDataType.Digital)
         {
             return rawValue > 0 ? 1.0 : 0.0;
-        }
-
-        if (settings.DataType == TagDataType.Virtual)
-        {
-            return rawValue;
         }
 
         // Готовое инженерное значение с прибора — масштабирование не нужно, только калибровка нуля.

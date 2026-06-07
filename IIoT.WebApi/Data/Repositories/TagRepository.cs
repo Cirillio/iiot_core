@@ -20,8 +20,8 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
-            FROM tags 
+                offset_val, deadband_threshold, ui_config as UiConfigJson, updated_at
+            FROM tags
             ORDER BY tag_id";
         using var connection = _context.CreateConnection();
         return await connection.QueryAsync<TagSettings>(sql);
@@ -35,8 +35,8 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
-            FROM tags 
+                offset_val, deadband_threshold, ui_config as UiConfigJson, updated_at
+            FROM tags
             WHERE tag_id = @Id";
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<TagSettings>(
@@ -53,9 +53,9 @@ public class TagRepository(DapperContext context) : ITagRepository
                 tag_id, device_id, port_number, name, slug, 
                 data_type, register_address, register_type, register_count, raw_data_type, endianness,
                 unit, input_min, input_max, output_min, output_max,
-                offset_val, deadband_threshold, formula, ui_config as UiConfigJson, updated_at
-            FROM tags 
-            WHERE device_id = @DeviceId 
+                offset_val, deadband_threshold, ui_config as UiConfigJson, updated_at
+            FROM tags
+            WHERE device_id = @DeviceId
             ORDER BY register_address, port_number";
         using var connection = _context.CreateConnection();
         return await connection.QueryAsync<TagSettings>(sql, new { DeviceId = deviceId });
@@ -70,12 +70,12 @@ public class TagRepository(DapperContext context) : ITagRepository
                 device_id, port_number, name, slug, data_type,
                 register_address, register_type, register_count, raw_data_type, endianness, unit,
                 input_min, input_max, output_min, output_max,
-                offset_val, deadband_threshold, formula, ui_config, updated_at
+                offset_val, deadband_threshold, ui_config, updated_at
             ) VALUES (
                 @DeviceId, @PortNumber, @Name, @Slug, @DataTypeStr::tag_data_type,
                 @RegisterAddress, @RegisterTypeStr::modbus_register_type, @RegisterCount, @RawDataTypeStr::modbus_raw_data_type, @EndiannessStr::modbus_endianness, @Unit,
                 @InputMin, @InputMax, @OutputMin, @OutputMax,
-                @OffsetVal, @DeadbandThreshold, @Formula, @UiConfigJson, @UpdatedAt
+                @OffsetVal, @DeadbandThreshold, @UiConfigJson, @UpdatedAt
             ) RETURNING tag_id";
 
         using var connection = _context.CreateConnection();
@@ -98,7 +98,6 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.OutputMax,
             tag.OffsetVal,
             tag.DeadbandThreshold,
-            tag.Formula,
             tag.UiConfigJson,
             tag.UpdatedAt
         });
@@ -127,7 +126,6 @@ public class TagRepository(DapperContext context) : ITagRepository
                 output_max = @OutputMax,
                 offset_val = @OffsetVal,
                 deadband_threshold = @DeadbandThreshold,
-                formula = @Formula,
                 ui_config = @UiConfigJson,
                 updated_at = @UpdatedAt
             WHERE tag_id = @TagId";
@@ -152,7 +150,6 @@ public class TagRepository(DapperContext context) : ITagRepository
             tag.OutputMax,
             tag.OffsetVal,
             tag.DeadbandThreshold,
-            tag.Formula,
             tag.UiConfigJson,
             tag.UpdatedAt,
             tag.TagId

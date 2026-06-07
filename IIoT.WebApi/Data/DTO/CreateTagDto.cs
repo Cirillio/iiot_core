@@ -18,7 +18,6 @@ public record CreateTagDto(
     double OutputMin,
     double OutputMax,
     double OffsetVal,
-    string? Formula,
     string UiConfig,
     string? Endianness = null,
     double? DeadbandThreshold = null,

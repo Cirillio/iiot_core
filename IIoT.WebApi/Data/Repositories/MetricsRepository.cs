@@ -89,4 +89,60 @@ public class MetricsRepository(DapperContext context) : IMetricsRepository
         using var connection = _context.CreateConnection();
         return await connection.QueryAsync<LatestMetricDto>(sql);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Фильтры собираются динамически: NULL-параметры исключают соответствующее условие
+    /// через `(@Param IS NULL OR column op @Param)` — один план запроса, без конкатенации SQL.
+    /// COUNT и страница выбираются двумя запросами; на гипертаблице это допустимо для табличного UI.
+    /// </remarks>
+    public async Task<PagedResult<RawMetricDto>> GetRawAsync(
+        int? tagId,
+        DateTime? from,
+        DateTime? to,
+        int page,
+        int pageSize
+    )
+    {
+        // Защита от некорректных значений с клиента: страница ≥ 1, размер в разумных пределах.
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
+        const string filter =
+            @"
+            WHERE (@TagId IS NULL OR m.tag_id = @TagId)
+              AND (@From  IS NULL OR m.time >= @From)
+              AND (@To    IS NULL OR m.time <= @To)";
+
+        var parameters = new
+        {
+            TagId = tagId,
+            From = from,
+            To = to,
+            Limit = pageSize,
+            Offset = (page - 1) * pageSize,
+        };
+
+        var countSql = $"SELECT COUNT(*) FROM metrics m {filter}";
+
+        var pageSql =
+            $@"
+            SELECT m.tag_id    AS TagId,
+                   t.name      AS TagName,
+                   t.unit      AS Unit,
+                   m.time      AS Time,
+                   m.raw_value AS RawValue,
+                   m.value     AS Value
+            FROM metrics m
+            LEFT JOIN tags t ON t.tag_id = m.tag_id
+            {filter}
+            ORDER BY m.time DESC
+            LIMIT @Limit OFFSET @Offset";
+
+        using var connection = _context.CreateConnection();
+        var total = await connection.ExecuteScalarAsync<long>(countSql, parameters);
+        var items = (await connection.QueryAsync<RawMetricDto>(pageSql, parameters)).ToList();
+
+        return new PagedResult<RawMetricDto>(items, total, page, pageSize);
+    }
 }

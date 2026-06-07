@@ -30,7 +30,7 @@ public class MetricsObserverService(
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         _logger.Information("MetricsObserverService starting...");
-        
+
         int currentRetryDelay = INITIAL_RETRY_DELAY_MS;
 
         while (!cancellationToken.IsCancellationRequested)
@@ -38,18 +38,22 @@ public class MetricsObserverService(
             try
             {
                 _logger.Information("Attempting to connect to DB for NOTIFY listening...");
-                
-                // Открываем выделенное соединение для LISTEN. 
+
+                // Открываем выделенное соединение для LISTEN.
                 // Используем OpenConnectionAsync напрямую из DataSource для контроля жизненного цикла.
                 using var conn = await _context.DataSource.OpenConnectionAsync(cancellationToken);
-                
+
                 // Сбрасываем задержку после успешного подключения
                 currentRetryDelay = INITIAL_RETRY_DELAY_MS;
 
                 // Подписываемся на события уведомлений
                 conn.Notification += async (o, e) =>
                 {
-                    _logger.Debug("DB Notification received on channel {Channel}. Payload length: {Len}", e.Channel, e.Payload.Length);
+                    _logger.Debug(
+                        "DB Notification received on channel {Channel}. Payload length: {Len}",
+                        e.Channel,
+                        e.Payload.Length
+                    );
                     try
                     {
                         await _hubContext.Clients.All.ReceiveMetrics(e.Payload);
@@ -63,7 +67,10 @@ public class MetricsObserverService(
                 using var cmd = new NpgsqlCommand($"LISTEN {CHANNEL_NAME}", conn);
                 await cmd.ExecuteNonQueryAsync(cancellationToken);
 
-                _logger.Information("Successfully subscribed to DB channel: {Channel}", CHANNEL_NAME);
+                _logger.Information(
+                    "Successfully subscribed to DB channel: {Channel}",
+                    CHANNEL_NAME
+                );
 
                 // Цикл ожидания уведомлений. WaitAsync эффективно освобождает поток.
                 while (!cancellationToken.IsCancellationRequested)
@@ -79,7 +86,11 @@ public class MetricsObserverService(
             }
             catch (PostgresException ex)
             {
-                _logger.Error("Postgres Error [State: {Code}]: {Message}", ex.SqlState, ex.MessageText);
+                _logger.Error(
+                    "Postgres Error [State: {Code}]: {Message}",
+                    ex.SqlState,
+                    ex.MessageText
+                );
                 await WaitBeforeRetry();
             }
             catch (Exception ex)

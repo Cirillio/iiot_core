@@ -33,7 +33,7 @@ public record DashboardTagDTO
     public string Slug { get; init; } = "unnamed-tag";
 
     /// <summary>
-    /// Тип сигнала (ANALOG, DIGITAL, VIRTUAL).
+    /// Тип сигнала (ANALOG_RAW, ANALOG_PHYSICAL, DIGITAL).
     /// </summary>
     public TagDataType DataType { get; init; }
 

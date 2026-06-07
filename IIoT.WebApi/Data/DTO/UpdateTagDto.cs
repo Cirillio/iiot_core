@@ -17,7 +17,6 @@ public record UpdateTagDto(
     double OutputMin,
     double OutputMax,
     double OffsetVal,
-    string? Formula,
     string UiConfig,
     string? Endianness = null,
     double? DeadbandThreshold = null,

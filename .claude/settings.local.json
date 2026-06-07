@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx nuxi *)",
+      "Bash(npx -y modern-web-guidance@latest search \"render time-series chart with proper time-scaled x-axis and downsampling\" --skill-version 2026_05_16-c5e7870)",
+      "Bash(npx -y modern-web-guidance@latest search \"consistent responsive dashboard layout sizing and spacing\" --skill-version 2026_05_16-c5e7870)",
+      "Bash(git -C /home/cirillio/web/csharp/IIoT/iiot_admin log --oneline -5)",
+      "Bash(git -C /home/cirillio/web/csharp/IIoT/iiot_monitoring log --oneline -5)",
+      "Bash(git -C /home/cirillio/web/csharp/IIoT/iiot_admin status)",
+      "Bash(git -C /home/cirillio/web/csharp/IIoT/iiot_monitoring status)"
+    ]
+  }
+}

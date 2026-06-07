@@ -20,4 +20,21 @@ public interface IMetricsRepository
     /// Последнее показание по каждому тегу — снимок для инициализации UI.
     /// </summary>
     Task<IEnumerable<LatestMetricDto>> GetLatestAsync();
+
+    /// <summary>
+    /// Постраничная выборка сырых метрик для табличного просмотра.
+    /// Возвращает строки в порядке убывания времени (новые сверху) и общее число строк под фильтр.
+    /// </summary>
+    /// <param name="tagId">Фильтр по тегу; null — все теги.</param>
+    /// <param name="from">Нижняя граница времени (UTC); null — без ограничения.</param>
+    /// <param name="to">Верхняя граница времени (UTC); null — без ограничения.</param>
+    /// <param name="page">Номер страницы (1-based).</param>
+    /// <param name="pageSize">Размер страницы.</param>
+    Task<PagedResult<RawMetricDto>> GetRawAsync(
+        int? tagId,
+        DateTime? from,
+        DateTime? to,
+        int page,
+        int pageSize
+    );
 }

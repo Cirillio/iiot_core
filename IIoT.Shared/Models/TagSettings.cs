@@ -16,12 +16,11 @@ public record TagSettings
 
     /// <summary>
     /// Идентификатор устройства, к которому привязан тег (Foreign Key).
-    /// Может быть null для виртуальных тегов.
     /// </summary>
     public int? DeviceId { get; init; }
 
     /// <summary>
-    /// Номер канала/порта на устройстве. Nullable — может отсутствовать у виртуальных тегов.
+    /// Номер канала/порта на устройстве.
     /// </summary>
     public int? PortNumber { get; init; }
 
@@ -58,12 +57,12 @@ public record TagSettings
     public string Name { get; init; } = string.Empty;
 
     /// <summary>
-    /// Текстовый идентификатор (slug) для формул, URL API и системных ссылок.
+    /// Текстовый идентификатор (slug) для URL API и системных ссылок.
     /// </summary>
     public string? Slug { get; init; }
 
     /// <summary>
-    /// Тип данных тега (сырой АЦП, физическая величина, дискретный, виртуальный).
+    /// Тип данных тега (сырой АЦП, физическая величина, дискретный).
     /// </summary>
     public TagDataType DataType { get; init; } = TagDataType.AnalogRaw;
 
@@ -106,11 +105,6 @@ public record TagSettings
     /// null → используется глобальный SystemConfig.DeadbandThreshold.
     /// </summary>
     public double? DeadbandThreshold { get; init; }
-
-    /// <summary>
-    /// Формула для расчёта виртуального тега. Может содержать slug-и других тегов.
-    /// </summary>
-    public string? Formula { get; init; }
 
     // --- Дополнительные метаданные ---
 

@@ -1,75 +1,148 @@
-# ADAM Monitoring System
+# IIoT Monitoring & Supervisory Control
 
-Система мониторинга и сбора данных по протоколу Modbus TCP. Проект включает в себя службу опроса датчиков, веб-API для доступа к данным, базу данных и симулятор оборудования.
+Промышленная система сбора телеметрии и супервизорного управления по протоколу
+**Modbus TCP**. Опрашивает устройства, нормализует и хранит временные ряды,
+транслирует показания в реальном времени и принимает команды записи в
+исполнительные механизмы (Coil / Holding Register).
 
-## 🏗 Архитектура
+Стек: **.NET 10** (Collector + Web API), **PostgreSQL 15 + TimescaleDB**,
+**Nuxt 4 / Vue 3.5** (админ-панель), Python (симулятор оборудования).
 
-Проект состоит из следующих микросервисов (Docker containers):
+---
 
-1. **modbus_client** (.NET 10 Worker):
-   - Фоновая служба.
-   - Опрашивает устройства (или симулятор) Modbus TCP.
-   - Сохраняет данные в базу PostgreSQL.
-2. **modbus_web_gateway** (.NET 10 Web API):
-   - Предоставляет REST API для доступа к собранным данным.
-   - Документация Swagger доступна по адресу `/swagger`.
-3. **adam_db** (PostgreSQL 15):
-   - Хранение измерений и конфигурации.
-4. **modbus_sim** (Python 3.12 + PyModbus):
-   - Программный эмулятор контроллера ADAM-6017.
-   - Генерирует синусоидальные данные на порту 5020.
+## Подсистемы
 
-Папка `DipMod/` содержит исходный код десктопного приложения (WPF Legacy), которое не участвует в Docker-сборке.
+| Подсистема | Проект | Роль |
+| :--- | :--- | :--- |
+| **Acquisition** (сбор) | `IIoT.Collector` | Фоновый Worker: цикл опроса Modbus, десериализация регистров, масштабирование, deadband, буферизация в SQLite при потере связи с БД. |
+| **Web API / Gateway** | `IIoT.WebApi` | REST для конфигурации и истории + SignalR для live-данных и обратной связи по командам. |
+| **Общие модели** | `IIoT.Shared` | Доменные модели и enum'ы, разделяемые между Collector и Web API. |
+| **Admin HMI** | `iiot_admin` | Nuxt-панель: дашборд, аналитика, таблица сырых данных, управление устройствами/тегами, АРМ супервизорного управления. |
+| **База данных** | `iiot_init.sql` | TimescaleDB: гипертаблица метрик, continuous aggregate, триггеры `pg_notify` как шина событий. |
+| **Симулятор** | `sim/` | Эмулятор Modbus-устройства для разработки без реального железа. |
 
-## 🚀 Быстрый старт
+---
 
-Для запуска требуется **Docker** и **Make**.
+## Архитектура
 
-### 1. Запуск системы
+### Шина событий: PostgreSQL `LISTEN/NOTIFY`
 
-```bash
-make up
+Сервисы не общаются напрямую — БД выступает брокером событий. Триггеры на
+таблицах публикуют уведомления, фоновые службы их слушают. Это убирает polling
+и развязывает Collector и Web API.
+
+| Канал | Источник (триггер) | Потребитель | Назначение |
+| :--- | :--- | :--- | :--- |
+| `metrics_realtime` | `INSERT` в `metrics` | Web API → SignalR | Live-трансляция показаний в UI. |
+| `control_commands` | `INSERT` в `device_commands` | Collector | Пинг о новой команде записи (несёт только UUID). |
+| `command_status_changed` | `UPDATE status` в `device_commands` | Web API → SignalR | Обратная связь о жизненном цикле команды. |
+| `config_changed` | `INSERT/UPDATE` в `system_config` | Collector | Hot-reload параметров опроса без перезапуска. |
+
+### Поток сбора (Acquisition)
+
+```
+Modbus-устройство ─(TCP)→ Collector
+   ReadRegisters → десериализация (endianness/тип) → масштабирование+deadband
+   → INSERT в metrics ─(trigger pg_notify 'metrics_realtime')→ Web API
+   → SignalR /hubs/metrics → админ-панель (live)
 ```
 
-Команда соберет образы и запустит контейнеры в фоновом режиме.
-_API будет доступен по адресу:_ `http://localhost:8080/swagger`
+При недоступности PostgreSQL Collector складывает метрики в локальный SQLite
+(`buffer.db`) и дозаливает их после восстановления связи.
 
-### 2. Проверка работы
+### Поток управления (Supervisory Control)
 
-Просмотр логов клиента (опрос датчиков):
-
-```bash
-make logs-client
+```
+Админ-панель ─POST /api/v1/control/write→ Web API
+   валидация прав записи (только Coil/Holding) + проверка статуса Collector
+   → INSERT device_commands (PENDING) ─(pg_notify 'control_commands')→ Collector
+   → Modbus Write → UPDATE статуса (SUCCESS/FAILED)
+   ─(pg_notify 'command_status_changed')→ Web API → SignalR /hubs/control → UI
 ```
 
-Вы должны увидеть сообщения `[DBG] Data successfully saved to DB`.
+---
 
-### 3. Остановка
+## Структура репозитория
 
-```bash
-make down
+```
+IIoT/
+├── IIoT.Collector/      # .NET Worker — опрос Modbus, обработка, буферизация
+├── IIoT.WebApi/         # .NET Web API — REST + SignalR-хабы
+├── IIoT.Shared/         # Общие модели и enum'ы
+├── iiot_admin/          # Nuxt 4 админ-панель (HMI)
+├── sim/                 # Python-симулятор Modbus-устройства
+├── iiot_init.sql        # Схема БД: таблицы, гипертаблица, триггеры, seed
+├── docker-compose.yml   # Оркестрация db / client / sim / gateway / cloudflared
+├── Makefile             # Обёртки над docker compose
+└── Docs/API.md          # Справочник REST-эндпоинтов и SignalR-хабов
 ```
 
-## 🛠 Управление и Отладка
+---
 
-Проект управляется через `Makefile`. Список доступных команд:
+## Запуск
 
-| Команда            | Описание                                                     |
-| :----------------- | :----------------------------------------------------------- |
-| `make up`          | Сборка и запуск системы                                      |
-| `make down`        | Остановка контейнеров                                        |
-| `make status`      | Статус контейнеров                                           |
-| `make logs`        | Логи всех сервисов                                           |
-| `make logs-client` | Логи Modbus клиента                                          |
-| `make db-shell`    | Вход в SQL консоль базы данных                               |
-| `make clean`       | **Полная очистка** (удаление контейнеров при ошибках Docker) |
+Требуется **Docker** и **Make**. Бэкенд-сервисы поднимаются через
+`docker-compose`; админ-панель запускается отдельно (Nuxt dev/preview).
 
-Подробное описание решения проблем при развертывании см. в файле [TROUBLESHOOTING_DOCKER.md](TROUBLESHOOTING_DOCKER.md).
+### Бэкенд (Collector + API + БД + симулятор)
 
-## ⚙️ Конфигурация
+```bash
+make up           # сборка и запуск всех контейнеров в фоне
+make logs-client  # логи опроса (ожидать "Data successfully saved to DB")
+make down         # остановка без удаления данных
+make reset-db     # сброс БД (down -v) — переинициализация свежим iiot_init.sql
+```
 
-Настройки портов и подключений находятся в `docker-compose.yml` и `IIoT.Collector/appsettings.json`.
+Полный список команд: `make help`.
 
-- **Modbus Port:** 5020 (Simulator)
-- **Web API Port:** 8080
-- **DB Port:** 5432
+### Админ-панель
+
+```bash
+cd iiot_admin
+bun install
+bun dev           # http://localhost:3000
+```
+
+API-адрес настраивается через `runtimeConfig.public.apiBase`
+(по умолчанию `http://localhost:8080`).
+
+---
+
+## Порты и конфигурация
+
+| Сервис | Порт | Описание |
+| :--- | :--- | :--- |
+| Web API | `8080` | REST + SignalR + Swagger (`/swagger`). |
+| PostgreSQL | `5432` | TimescaleDB. |
+| Modbus-симулятор | `5020` | Эмулятор устройства. |
+| Admin (dev) | `3000` | Nuxt dev-сервер. |
+
+**Переменные окружения** (`docker-compose.yml`):
+
+- `ConnectionStrings__AdamMonitoring` / `ConnectionStrings__ADAMDB` — строка
+  подключения к PostgreSQL для Web API и Collector соответственно.
+- `ModbusSettings__IpAddress` / `ModbusSettings__Port` — адрес опрашиваемого
+  устройства (по умолчанию указывает на контейнер `sim`).
+- `CLOUDFLARE_TUNNEL_TOKEN` (в `.env`) — токен Cloudflare-туннеля для внешнего
+  доступа.
+
+Параметры периода опроса, deadband и хранения данных хранятся в таблице
+`system_config` и редактируются через раздел **Settings** админ-панели —
+изменения применяются на лету через канал `config_changed`.
+
+**Хранение данных (retention).** TimescaleDB сама дропает устаревшие чанки по
+политикам, которые ставит триггер `trg_apply_retention` на `system_config`:
+сырые метрики `metrics` живут `rawRetentionDays` (90 дней по умолчанию), часовые
+агрегаты `metrics_hourly` — `aggRetentionDays` (5 лет). Правка этих полей в
+Settings немедленно пере-применяет политики. Политики устанавливаются при
+инициализации БД, поэтому на существующей БД (init-скрипт не перезапускается)
+для их появления нужен `make reset-db` либо одно сохранение настроек в Settings
+— любой `UPDATE` полей retention поднимает триггер.
+
+---
+
+## API
+
+Полный справочник REST-эндпоинтов, SignalR-хабов и форматов payload —
+в [Docs/API.md](Docs/API.md). Интерактивная документация доступна в Swagger UI
+по адресу `http://localhost:8080/swagger`.
