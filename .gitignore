@@ -25,7 +25,7 @@ ehthumbs.db
 
 # --- Non-core dirs (separate repos / drafts) ---
 iiot_admin/
-iiot_monitoring/
+# iiot_monitoring/
 mobile_mockup_react/
 Docs/
 Презентация/
@@ -83,6 +83,7 @@ rabbitmq_data/
 
 # --- Logs & Temporaries ---
 *.log
+*.db
 modbusClient/logs/
 modbusWebGateway/logs/
 
