@@ -90,7 +90,7 @@ public class DeviceRepository(DapperContext context) : IDeviceRepository
     {
         var sql =
             @"
-            SELECT d.*, s.*
+            SELECT d.*, s.*, s.ui_config AS UiConfigJson
             FROM devices d
             LEFT JOIN tags s ON d.id = s.device_id
             WHERE d.id = @Id";
