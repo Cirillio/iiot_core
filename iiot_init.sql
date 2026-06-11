@@ -241,6 +241,28 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_notify_config_change AFTER UPDATE OR INSERT ON system_config
 FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_config_change();
 
+-- Изменение ТОПОЛОГИИ (соединения / устройства / теги) → та же мгновенная горячая
+-- перезагрузка, что и для system_config. Слушатель коллектора (RunConfigListenerLoop) на
+-- любое уведомление в канале config_changed выполняет полный ReloadConfigurationAsync(),
+-- поэтому код коллектора менять не нужно — достаточно публиковать в тот же канал.
+-- Уровень STATEMENT (а не ROW): один NOTIFY на операцию, даже при пакетной вставке тегов.
+-- В AFTER-триггере возвращаемое значение игнорируется → RETURN NULL корректен для INSERT/UPDATE/DELETE.
+CREATE OR REPLACE FUNCTION fn_trigger_notify_topology_change() RETURNS trigger AS $$
+BEGIN
+    PERFORM pg_notify('config_changed', 'reload');
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_notify_connections_change AFTER INSERT OR UPDATE OR DELETE ON modbus_connections
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
+CREATE TRIGGER trg_notify_devices_change AFTER INSERT OR UPDATE OR DELETE ON devices
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
+CREATE TRIGGER trg_notify_tags_change AFTER INSERT OR UPDATE OR DELETE ON tags
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
 -- Применение политик хранения TimescaleDB по значениям из system_config.
 -- Срабатывает при seed-INSERT и при каждом сохранении настроек из UI (PUT /api/system/config),
 -- поэтому период хранения меняется на лету — без перезапуска и ручного SQL.

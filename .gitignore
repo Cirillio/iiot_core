@@ -87,6 +87,8 @@ rabbitmq_data/
 modbusClient/logs/
 modbusWebGateway/logs/
 
+IIoT.WebApi/API_DEVELOPMENT_PLAN.md
+
 # --- Secrets ---
 # !ВАЖНО: Никогда не коммить реальные секреты!
 appsettings.Development.json
