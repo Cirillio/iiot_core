@@ -108,11 +108,14 @@ public class MetricsRepository(DapperContext context) : IMetricsRepository
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 500);
 
+        // Явные касты обязательны: при NULL-параметрах Npgsql не указывает тип, и PG
+        // не может вывести его из `@p IS NULL` → ошибка 42P08 «could not determine data
+        // type of parameter». Каст к конкретному типу снимает неоднозначность.
         const string filter =
             @"
-            WHERE (@TagId IS NULL OR m.tag_id = @TagId)
-              AND (@From  IS NULL OR m.time >= @From)
-              AND (@To    IS NULL OR m.time <= @To)";
+            WHERE (@TagId::int IS NULL OR m.tag_id = @TagId::int)
+              AND (@From::timestamptz IS NULL OR m.time >= @From::timestamptz)
+              AND (@To::timestamptz IS NULL OR m.time <= @To::timestamptz)";
 
         var parameters = new
         {

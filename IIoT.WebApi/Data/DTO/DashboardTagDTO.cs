@@ -38,9 +38,9 @@ public record DashboardTagDTO
     public TagDataType DataType { get; init; }
 
     /// <summary>
-    /// Единица измерения (напр. "°C").
+    /// Единица измерения (напр. "°C"). NULL — единица не задана (DIGITAL или безразмерный тег).
     /// </summary>
-    public string Unit { get; init; } = "UnknownUnit";
+    public string? Unit { get; init; }
 
     /// <summary>
     /// Конфигурация интерфейса (цвета, иконки, границы).
