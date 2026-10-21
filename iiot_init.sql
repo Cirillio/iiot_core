@@ -241,6 +241,28 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_notify_config_change AFTER UPDATE OR INSERT ON system_config
 FOR EACH ROW EXECUTE FUNCTION fn_trigger_notify_config_change();
 
+-- Изменение ТОПОЛОГИИ (соединения / устройства / теги) → та же мгновенная горячая
+-- перезагрузка, что и для system_config. Слушатель коллектора (RunConfigListenerLoop) на
+-- любое уведомление в канале config_changed выполняет полный ReloadConfigurationAsync(),
+-- поэтому код коллектора менять не нужно — достаточно публиковать в тот же канал.
+-- Уровень STATEMENT (а не ROW): один NOTIFY на операцию, даже при пакетной вставке тегов.
+-- В AFTER-триггере возвращаемое значение игнорируется → RETURN NULL корректен для INSERT/UPDATE/DELETE.
+CREATE OR REPLACE FUNCTION fn_trigger_notify_topology_change() RETURNS trigger AS $$
+BEGIN
+    PERFORM pg_notify('config_changed', 'reload');
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_notify_connections_change AFTER INSERT OR UPDATE OR DELETE ON modbus_connections
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
+CREATE TRIGGER trg_notify_devices_change AFTER INSERT OR UPDATE OR DELETE ON devices
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
+CREATE TRIGGER trg_notify_tags_change AFTER INSERT OR UPDATE OR DELETE ON tags
+FOR EACH STATEMENT EXECUTE FUNCTION fn_trigger_notify_topology_change();
+
 -- Применение политик хранения TimescaleDB по значениям из system_config.
 -- Срабатывает при seed-INSERT и при каждом сохранении настроек из UI (PUT /api/system/config),
 -- поэтому период хранения меняется на лету — без перезапуска и ручного SQL.
@@ -293,13 +315,13 @@ VALUES ('ADAM-6017',
 -- Аналоговые входы — Input Registers (FC04), 16-bit (register_count=1, endianness не важен)
 -- Дискретный — Discrete Input (FC02)
 INSERT INTO tags
-    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, unit, input_min, input_max, output_min, output_max)
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, unit, input_min, input_max, output_min, output_max, ui_config)
 VALUES
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 0, 'Температура',     'adam_temp',     'ANALOG_RAW'::tag_data_type,  0, 'INPUT_REGISTER'::modbus_register_type,  1, '°C',  0, 65535, -50, 150),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 1, 'Входное давление','adam_press_in', 'ANALOG_RAW'::tag_data_type,  1, 'INPUT_REGISTER'::modbus_register_type,  1, 'Bar', 0, 65535,   0,  10),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG_RAW'::tag_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG_RAW'::tag_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20),
-    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::tag_data_type,     0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1);
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 0, 'Температура',     'adam_temp',     'ANALOG_RAW'::tag_data_type,  0, 'INPUT_REGISTER'::modbus_register_type,  1, '°C',  0, 65535, -50, 150, '{"color":"#FF6B35","icon":"device_thermostat","minCritical":-20,"minWarning":0,"maxWarning":100,"maxCritical":130}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 1, 'Входное давление','adam_press_in', 'ANALOG_RAW'::tag_data_type,  1, 'INPUT_REGISTER'::modbus_register_type,  1, 'Bar', 0, 65535,   0,  10, '{"color":"#4A90D9","icon":"speed","maxWarning":8,"maxCritical":9.5}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 2, 'Влажность',       'adam_humidity', 'ANALOG_RAW'::tag_data_type,  2, 'INPUT_REGISTER'::modbus_register_type,  1, '%',   0, 65535,   0, 100, '{"color":"#00BCD4","icon":"humidity_percentage","minWarning":20,"maxWarning":80,"maxCritical":95}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 3, 'Ток датчика',     'adam_current',  'ANALOG_RAW'::tag_data_type,  3, 'INPUT_REGISTER'::modbus_register_type,  1, 'mA',  0, 65535,   4,  20, '{"color":"#FFC107","icon":"bolt","minCritical":4,"minWarning":6,"maxWarning":18,"maxCritical":20}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'ADAM-6017'), 4, 'Авария',          'adam_alarm',    'DIGITAL'::tag_data_type,     0, 'DISCRETE_INPUT'::modbus_register_type,  1, NULL,  0,     1,   0,   1, '{"color":"#F44336","icon":"warning","digitalCritical":1,"labelZero":"Норма","labelOne":"Авария"}'::jsonb);
 
 -- Device: Siemens S7-1200 — привод асинхронного двигателя (slave 2 на том же шлюзе sim:5020).
 INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active)
@@ -310,17 +332,17 @@ VALUES ('Siemens S7-1200',
 -- Теги Siemens. Измерения процесса — Input Registers (RO, FC04, FLOAT32 ABCD).
 -- Управление — Holding/Coil (RW): уставка оборотов и команда пуска.
 INSERT INTO tags
-    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max)
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max, ui_config)
 VALUES
     -- Read-only измерения
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 0, 'Обороты двигателя', 's7_rpm',      'ANALOG_PHYSICAL'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0),
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 1, 'Температура мотора','s7_temp',     'ANALOG_PHYSICAL'::tag_data_type, 2, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '°C',  0, 0, 0, 0),
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 2, 'Мощность',         's7_power',     'ANALOG_PHYSICAL'::tag_data_type, 4, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'kW',  0, 0, 0, 0),
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 3, 'Вращается',        's7_running',   'DIGITAL'::tag_data_type,         0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1),
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 4, 'Перегрев',         's7_overheat',  'DIGITAL'::tag_data_type,         1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 0, 'Обороты двигателя', 's7_rpm',      'ANALOG_PHYSICAL'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0, '{"color":"#9C27B0","icon":"rotate_right","maxWarning":2900,"maxCritical":3100}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 1, 'Температура мотора','s7_temp',     'ANALOG_PHYSICAL'::tag_data_type, 2, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '°C',  0, 0, 0, 0, '{"color":"#FF6B35","icon":"device_thermostat","maxWarning":70,"maxCritical":90}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 2, 'Мощность',         's7_power',     'ANALOG_PHYSICAL'::tag_data_type, 4, 'INPUT_REGISTER'::modbus_register_type,   2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'kW',  0, 0, 0, 0, '{"color":"#FF9800","icon":"bolt","maxWarning":15,"maxCritical":18}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 3, 'Вращается',        's7_running',   'DIGITAL'::tag_data_type,         0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1, '{"color":"#4CAF50","icon":"autorenew","labelZero":"Стоп","labelOne":"Вращается"}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 4, 'Перегрев',         's7_overheat',  'DIGITAL'::tag_data_type,         1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1, '{"color":"#F44336","icon":"local_fire_department","digitalCritical":1,"labelZero":"Норма","labelOne":"Перегрев"}'::jsonb),
     -- Read/Write управление
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 5, 'Уставка оборотов', 's7_rpm_sp',    'ANALOG_PHYSICAL'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0),
-    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 6, 'Пуск двигателя',   's7_run_cmd',   'DIGITAL'::tag_data_type,         0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1);
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 5, 'Уставка оборотов', 's7_rpm_sp',    'ANALOG_PHYSICAL'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 2, 'FLOAT32'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'rpm', 0, 0, 0, 0, '{"color":"#607D8B","icon":"tune","maxWarning":2900,"maxCritical":3100}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Siemens S7-1200'), 6, 'Пуск двигателя',   's7_run_cmd',   'DIGITAL'::tag_data_type,         0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type,  'BIG_ENDIAN'::modbus_endianness, NULL, 0, 1, 0, 1, '{"color":"#4CAF50","icon":"power_settings_new","labelZero":"Стоп","labelOne":"Пуск"}'::jsonb);
 
 -- Device: Schneider M221 — насосная станция / резервуар (slave 3).
 INSERT INTO devices (name, connection_id, slave_id, use_group_polling, max_register_span, is_active)
@@ -331,13 +353,13 @@ VALUES ('Schneider M221',
 -- Теги Schneider. Давление/уровень — Input Registers (RO, 16-bit, линейное масштабирование).
 -- Управление — реле насоса (Coil) и уставка давления (Holding).
 INSERT INTO tags
-    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max)
+    (device_id, port_number, name, slug, data_type, register_address, register_type, register_count, raw_data_type, endianness, unit, input_min, input_max, output_min, output_max, ui_config)
 VALUES
     -- Read-only измерения
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 0, 'Давление в баке',  'm221_press',    'ANALOG_RAW'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10),
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 1, 'Уровень в баке',   'm221_level',    'ANALOG_RAW'::tag_data_type, 1, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '%',   0, 65535, 0, 100),
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 2, 'Давление достигнуто','m221_press_ok','DIGITAL'::tag_data_type,   0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 3, 'Низкий уровень',   'm221_low_lvl',  'DIGITAL'::tag_data_type,    1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 0, 'Давление в баке',  'm221_press',    'ANALOG_RAW'::tag_data_type, 0, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10, '{"color":"#4A90D9","icon":"speed","maxWarning":8,"maxCritical":9.5}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 1, 'Уровень в баке',   'm221_level',    'ANALOG_RAW'::tag_data_type, 1, 'INPUT_REGISTER'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, '%',   0, 65535, 0, 100, '{"color":"#2196F3","icon":"water_drop","minCritical":10,"minWarning":20,"maxWarning":90,"maxCritical":95}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 2, 'Давление достигнуто','m221_press_ok','DIGITAL'::tag_data_type,   0, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1, '{"color":"#4CAF50","icon":"check_circle","labelZero":"Нет","labelOne":"Достигнуто"}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 3, 'Низкий уровень',   'm221_low_lvl',  'DIGITAL'::tag_data_type,    1, 'DISCRETE_INPUT'::modbus_register_type,   1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1, '{"color":"#F44336","icon":"warning","digitalCritical":1,"labelZero":"Норма","labelOne":"Низкий уровень"}'::jsonb),
     -- Read/Write управление
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 4, 'Реле насоса',      'm221_pump',     'DIGITAL'::tag_data_type,    0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1),
-    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 5, 'Уставка давления', 'm221_press_sp', 'ANALOG_RAW'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10);
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 4, 'Реле насоса',      'm221_pump',     'DIGITAL'::tag_data_type,    0, 'COIL'::modbus_register_type,             1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, NULL,  0, 1, 0, 1, '{"color":"#00897B","icon":"water_pump","labelZero":"Выкл","labelOne":"Вкл"}'::jsonb),
+    ((SELECT id FROM devices WHERE name = 'Schneider M221'), 5, 'Уставка давления', 'm221_press_sp', 'ANALOG_RAW'::tag_data_type, 0, 'HOLDING_REGISTER'::modbus_register_type, 1, 'UINT16'::modbus_raw_data_type, 'BIG_ENDIAN'::modbus_endianness, 'Bar', 0, 65535, 0,  10, '{"color":"#607D8B","icon":"tune","maxWarning":8,"maxCritical":9.5}'::jsonb);
