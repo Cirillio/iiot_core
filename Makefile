@@ -2,9 +2,9 @@
 DC = sudo docker compose
 DOCKER = sudo docker
 # Список контейнеров для ручного удаления (Nuclear Option)
-CONTAINERS = modbus_client modbus_web_gatewey adam_db modbus_sim
+CONTAINERS = modbus_client modbus_web_gateway adam_db modbus_sim modbus_admin
 
-.PHONY: help up up-db up-client up-sim up-gateway up-cloudflared down restart status logs logs-client logs-sim logs-gateway clean db-shell shell-client
+.PHONY: help up up-db up-client up-sim up-gateway up-admin up-cloudflared down restart status logs logs-client logs-sim logs-gateway logs-admin clean db-shell shell-client
 
 # Помощь (выводится по умолчанию)
 help:
@@ -48,6 +48,9 @@ up-sim:
 up-gateway:
 	$(DC) up -d gateway
 
+up-admin:
+	$(DC) up -d admin
+
 up-cloudflared:
 	$(DC) up -d cloudflared
 
@@ -70,7 +73,10 @@ logs-sim:
 	$(DOCKER) logs -f --tail=100 modbus_sim
 
 logs-web:
-	$(DOCKER) logs -f --tail=100 modbus_web_gatewey
+	$(DOCKER) logs -f --tail=100 modbus_web_gateway
+
+logs-admin:
+	$(DOCKER) logs -f --tail=100 modbus_admin
 
 # Исправление ошибок (то самое решение проблемы KeyError: 'ContainerConfig')
 clean:

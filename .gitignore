@@ -25,13 +25,19 @@ ehthumbs.db
 
 # --- Non-core dirs (separate repos / drafts) ---
 iiot_admin/
-# iiot_monitoring/
+iiot_monitoring/
 mobile_mockup_react/
-Docs/
+Docs/*
+!Docs/Security_and_Access_Control.md
+!Docs/API.md
+!Docs/Эксплуатация (Docker и Cloudflare).md
+!Docs/Устройства и теги.md
+!Docs/Архитектура системы.md
 Презентация/
 
 # --- Misc project files ---
 Untitled.md
+Untitled.canvas
 iiot.code-workspace
 diagram-export-*.png
 hub_listener_test/

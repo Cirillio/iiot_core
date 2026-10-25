@@ -81,68 +81,67 @@ IIoT/
 
 ## Запуск
 
-Требуется **Docker** и **Make**. Бэкенд-сервисы поднимаются через
-`docker-compose`; админ-панель запускается отдельно (Nuxt dev/preview).
+Требуется **Docker** и **Make** (или Docker CLI). Все сервисы (включая админ-панель `iiot_admin`) оркестрируются через единый `docker-compose.yml`.
 
-### Бэкенд (Collector + API + БД + симулятор)
+### Быстрый запуск всего стека (1 команда)
 
 ```bash
-make up           # сборка и запуск всех контейнеров в фоне
-make logs-client  # логи опроса (ожидать "Data successfully saved to DB")
-make down         # остановка без удаления данных
-make reset-db     # сброс БД (down -v) — переинициализация свежим iiot_init.sql
+cp .env.example .env    # если файл .env ещё не создан
+make up                 # сборка и запуск всех сервисов (db, client, sim, gateway, admin)
+make status             # проверка статуса контейнеров
 ```
 
-Полный список команд: `make help`.
+После старта доступны:
+- Админ-панель (HMI): `http://localhost:3000`
+- REST API / Swagger: `http://localhost:8080/swagger`
+- Modbus TCP симулятор: `localhost:5020`
 
-### Админ-панель
+### Полезные команды Make
+
+```bash
+make logs         # логи всех контейнеров
+make logs-client  # логи цикла опроса Modbus
+make logs-web     # логи Web API и SignalR
+make logs-admin   # логи веб-интерфейса
+make down         # корректная остановка без потери данных
+make reset-db     # сброс БД (down -v) для переинициализации схемы
+```
+
+### Локальная разработка фронтенда (без Docker для HMI)
 
 ```bash
 cd iiot_admin
 bun install
-bun dev           # http://localhost:3000
+bun dev           # http://localhost:3000 с горячей перезагрузкой (HMR)
 ```
 
-API-адрес настраивается через `runtimeConfig.public.apiBase`
-(по умолчанию `http://localhost:8080`).
+Адрес API конфигурируется переменной `NUXT_PUBLIC_API_BASE` (по умолчанию `http://localhost:8080`).
 
 ---
 
-## Порты и конфигурация
+## Порты и сервисы
 
-| Сервис | Порт | Описание |
-| :--- | :--- | :--- |
-| Web API | `8080` | REST + SignalR + Swagger (`/swagger`). |
-| PostgreSQL | `5432` | TimescaleDB. |
-| Modbus-симулятор | `5020` | Эмулятор устройства. |
-| Admin (dev) | `3000` | Nuxt dev-сервер. |
+| Сервис | Контейнер | Порт | Описание |
+| :--- | :--- | :--- | :--- |
+| **Admin HMI** | `modbus_admin` | `3000` | Веб-интерфейс Nuxt 4 (production Node-сервер). |
+| **Web API** | `modbus_web_gateway` | `8080` | REST + SignalR + Swagger UI (`/swagger`). |
+| **Collector** | `modbus_client` | — | Опрос Modbus, нормализация, запись в БД и буфер. |
+| **PostgreSQL** | `adam_db` | `5432` | TimescaleDB хранилище телеметрии и событий. |
+| **Modbus Sim** | `modbus_sim` | `5020` | Эмулятор Modbus TCP оборудования. |
+| **Cloudflare** | `cloudflared` | — | Туннель для безопасного удаленного доступа. |
 
-**Переменные окружения** (`docker-compose.yml`):
+**Переменные окружения** (`.env`):
 
-- `ConnectionStrings__AdamMonitoring` / `ConnectionStrings__ADAMDB` — строка
-  подключения к PostgreSQL для Web API и Collector соответственно.
-- `ModbusSettings__IpAddress` / `ModbusSettings__Port` — адрес опрашиваемого
-  устройства (по умолчанию указывает на контейнер `sim`).
-- `CLOUDFLARE_TUNNEL_TOKEN` (в `.env`) — токен Cloudflare-туннеля для внешнего
-  доступа.
-
-Параметры периода опроса, deadband и хранения данных хранятся в таблице
-`system_config` и редактируются через раздел **Settings** админ-панели —
-изменения применяются на лету через канал `config_changed`.
-
-**Хранение данных (retention).** TimescaleDB сама дропает устаревшие чанки по
-политикам, которые ставит триггер `trg_apply_retention` на `system_config`:
-сырые метрики `metrics` живут `rawRetentionDays` (90 дней по умолчанию), часовые
-агрегаты `metrics_hourly` — `aggRetentionDays` (5 лет). Правка этих полей в
-Settings немедленно пере-применяет политики. Политики устанавливаются при
-инициализации БД, поэтому на существующей БД (init-скрипт не перезапускается)
-для их появления нужен `make reset-db` либо одно сохранение настроек в Settings
-— любой `UPDATE` полей retention поднимает триггер.
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — реквизиты PostgreSQL.
+- `NUXT_PUBLIC_API_BASE` — адрес Web API для фронтенда (клиентский браузер).
+- `CORS_ALLOWED_ORIGINS` — список разрешённых origins для CORS в Web API (через запятую).
+- `CLOUDFLARE_TUNNEL_TOKEN` — токен Cloudflare Zero Trust туннеля.
 
 ---
 
-## API
+## Документация и безопасность
 
-Полный справочник REST-эндпоинтов, SignalR-хабов и форматов payload —
-в [Docs/API.md](Docs/API.md). Интерактивная документация доступна в Swagger UI
-по адресу `http://localhost:8080/swagger`.
+- [Безопасность и модель контроля доступа](Docs/Security_and_Access_Control.md) — модель доверия, риски эндпоинтов управления и рекомендации по защите периметра.
+- [Справочник API и протоколов](Docs/API.md) — спецификация REST-эндпоинтов, хабов SignalR и структур данных.
+- [Инфраструктура и траблшутинг](Docs/Эксплуатация%20(Docker%20и%20Cloudflare).md) — решение инцидентов и сетевые настройки.
+

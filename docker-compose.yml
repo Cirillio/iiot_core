@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: timescale/timescaledb:latest-pg15
@@ -49,11 +47,31 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=${POSTGRES_DB:?задай POSTGRES_DB в .env};Username=${POSTGRES_USER:?задай POSTGRES_USER в .env};Password=${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
+      - Cors__AllowedOrigins=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,https://localhost:3000,http://localhost:5173,https://localhost:5173}
     ports: ["8080:80"]
     depends_on:
       db:
         condition: service_healthy
     restart: always
+
+  admin:
+    dns: [8.8.8.8, 8.8.4.4]
+    build: { context: ./iiot_admin, dockerfile: Dockerfile }
+    container_name: modbus_admin
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE:-http://localhost:8080}
+      - NODE_ENV=production
+    ports: ["3000:3000"]
+    depends_on:
+      gateway:
+        condition: service_started
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
 
   cloudflared:
     image: cloudflare/cloudflared:latest

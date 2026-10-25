@@ -68,20 +68,37 @@ builder.Services.AddHostedService<SystemHealthService>();
 builder.Services.AddHostedService<CommandObserverService>();
 
 // Add CORS policy
+var defaultOrigins = new[]
+{
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "http://localhost:5173",
+    "https://localhost:5173"
+};
+
+var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+if (configuredOrigins == null || configuredOrigins.Length == 0)
+{
+    var rawOrigins = builder.Configuration["Cors:AllowedOrigins"];
+    if (!string.IsNullOrWhiteSpace(rawOrigins))
+    {
+        configuredOrigins = rawOrigins.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+}
+
+var allowedOrigins = (configuredOrigins != null && configuredOrigins.Length > 0)
+    ? configuredOrigins
+    : defaultOrigins;
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials()
-            .WithOrigins(
-                "http://localhost:3000",
-                "https://localhost:3000",
-                "http://localhost:5173",
-                "https://localhost:5173"
-            ); // typical frontend ports
+            .AllowCredentials();
     });
 });
 

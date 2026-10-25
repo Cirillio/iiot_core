@@ -443,20 +443,27 @@ public class ModbusWorker(
             _failedDevicesCount = results.Count(r => !r.Success);
 
             // Персистим рантайм-статус доступности (не трогает is_active).
-            await repository.UpdateDeviceStatusesAsync(statusUpdates);
+            // Изолированный catch: сбой статус-апдейта не должен блокировать буферинг метрик.
+            try
+            {
+                await repository.UpdateDeviceStatusesAsync(statusUpdates);
+            }
+            catch (Exception ex)
+            {
+                _lastGlobalError = $"DB Error: {ex.Message}";
+                logger.LogWarning("DB unreachable, skipping device status update: {Msg}", ex.Message);
+            }
 
             if (allMetrics.Count > 0)
             {
                 try
                 {
-                    // Попытка сохранить в основную БД (TimescaleDB)
                     await repository.SaveMetricsAsync(allMetrics);
                     if (_lastGlobalError?.StartsWith("DB Error") == true)
                         _lastGlobalError = null;
                 }
                 catch (Exception ex)
                 {
-                    // Если основная БД недоступна — пишем в локальный буфер
                     _lastGlobalError = $"DB Error: {ex.Message}";
                     logger.LogWarning(
                         "Postgres unreachable. Buffering {Count} metrics to SQLite.",
