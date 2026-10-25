@@ -6,15 +6,15 @@ services:
     container_name: adam_db
     restart: always
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: REDACTED
-      POSTGRES_DB: AdamMonitoring
+      POSTGRES_USER: ${POSTGRES_USER:?задай POSTGRES_USER в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: ${POSTGRES_DB:?задай POSTGRES_DB в .env}
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./iiot_init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d AdamMonitoring"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -25,7 +25,7 @@ services:
     build: { context: ., dockerfile: IIoT.Collector/Dockerfile, network: host }
     container_name: modbus_client
     environment:
-      - ConnectionStrings__ADAMDB=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=REDACTED
+      - ConnectionStrings__ADAMDB=Host=db;Port=5432;Database=${POSTGRES_DB:?задай POSTGRES_DB в .env};Username=${POSTGRES_USER:?задай POSTGRES_USER в .env};Password=${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
       - ModbusSettings__IpAddress=sim
       - ModbusSettings__Port=5020
       - Serilog__MinimumLevel=Debug
@@ -48,7 +48,7 @@ services:
     container_name: modbus_web_gateway
     environment:
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=AdamMonitoring;Username=admin;Password=REDACTED
+      - ConnectionStrings__AdamMonitoring=Host=db;Port=5432;Database=${POSTGRES_DB:?задай POSTGRES_DB в .env};Username=${POSTGRES_USER:?задай POSTGRES_USER в .env};Password=${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
     ports: ["8080:80"]
     depends_on:
       db:
@@ -62,7 +62,7 @@ services:
     restart: always
     command: ["tunnel", "run"]
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:?задай CLOUDFLARE_TUNNEL_TOKEN в .env}
       - TUNNEL_TRANSPORT_PROTOCOL=http2
       - TUNNEL_HEARTBEAT_INTERVAL=5s
       - TUNNEL_HEARTBEAT_COUNT=2

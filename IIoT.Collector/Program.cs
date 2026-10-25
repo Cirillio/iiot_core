@@ -5,6 +5,7 @@ using IIoT.Collector.Interfaces;
 using IIoT.Collector.Repositories;
 using IIoT.Collector.Services;
 using IIoT.Collector.Workers;
+using IIoT.Shared.Configuration;
 using IIoT.Shared.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,13 +24,17 @@ try
     DefaultTypeMap.MatchNamesWithUnderscores = true;
     SqlMapper.AddTypeHandler(new JsonTypeHandler<TagUiConfig>());
 
+    // Локальный запуск: подтягиваем .env до создания билдера, чтобы переменные попали в конфигурацию
+    LocalEnv.Load();
+
     // Создание билдера хоста (Generic Host)
     var builder = Host.CreateApplicationBuilder(args);
 
     // NpgsqlDataSource с нативным маппингом enum-типов PostgreSQL
     var connStr =
         builder.Configuration.GetConnectionString("ADAMDB")
-        ?? throw new InvalidOperationException("Connection string 'ADAMDB' not found.");
+        ?? LocalEnv.BuildPostgresConnectionString(
+            "Connect Timeout=5;Command Timeout=5;Cancellation Timeout=3000;");
     var translator = new CollectorNameTranslator();
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connStr);
     dataSourceBuilder.MapEnum<TagDataType>("tag_data_type", translator);

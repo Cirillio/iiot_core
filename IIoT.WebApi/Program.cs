@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using IIoT.Shared.Configuration;
 using IIoT.Shared.Models;
 using IIoT.WebApi.Core.Interfaces;
 using IIoT.WebApi.Data.Repositories;
@@ -10,7 +11,13 @@ using IIoT.WebApi.Hubs;
 using IIoT.WebApi.Services;
 using Serilog;
 
+// Локальный запуск: подтягиваем .env до создания билдера (в Docker строка приходит из ConnectionStrings__*)
+LocalEnv.Load();
+
 var builder = WebApplication.CreateBuilder(args);
+
+if (string.IsNullOrEmpty(builder.Configuration.GetConnectionString("AdamMonitoring")))
+    builder.Configuration["ConnectionStrings:AdamMonitoring"] = LocalEnv.BuildPostgresConnectionString();
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
